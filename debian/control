@@ -1,0 +1,30 @@
+Source: subtle
+Section: x11
+Priority: extra
+Maintainer: Alexander Wirt <formorer@debian.org>
+Build-Depends:  debhelper (>= 8.0.0),
+                chrpath,
+                libx11-dev,
+                ruby1.9.1,
+                ruby1.9.1-dev,
+                pkg-config,
+                libxrandr-dev,
+                libxft-dev,
+                libxinerama-dev,
+                libxpm-dev
+Standards-Version: 3.9.2
+Homepage: http://subforge.org/
+#Vcs-Git: git://git.debian.org/collab-maint/subtle.git
+#Vcs-Browser: http://git.debian.org/?p=collab-maint/subtle.git;a=summary
+
+Package: subtle
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ruby1.9.1
+Description: grid-based manual tiling window manager
+ Grid-based manual tiling window manager with a strong focus on easy but
+ customizable look and feel.
+ .
+ In comparison to other tiling window managers,
+ subtle has no automatic tiling of the screen size in any way. Instead, windows
+ are arranged according to positions inside of a grid. These positions are
+ called gravities.

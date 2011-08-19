@@ -1,0 +1,15 @@
+Format: http://dep.debian.net/deps/dep5
+Upstream-Name: subtle
+Source: <http://subforge.org/projects/subtle/wiki>
+
+Files: *
+Copyright: 2005-2011 Christoph Kappel <unexist@dorfelite.net>
+License: GPL-2
+ On Debian systems, the complete text of the GNU General Public
+ License can be found in the file /usr/share/common-licenses/GPL-2'.
+
+Files: debian/*
+Copyright: 2011 Alexander Wirt <formorer@debian.org>
+License: GPL-2
+ On Debian systems, the complete text of the GNU General
+ Public License version 2 can be found in "/usr/share/common-licenses/GPL-2".

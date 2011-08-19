@@ -1,0 +1,5 @@
+subtle (0.10.3008nu-1) unstable; urgency=low
+
+  * Initial release (Closes: #638650)
+
+ -- Alexander Wirt <formorer@debian.org>  Fri, 19 Aug 2011 11:40:41 +0200
