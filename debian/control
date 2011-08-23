@@ -11,11 +11,11 @@ Build-Depends:  debhelper (>= 8.0.0),
                 libxrandr-dev,
                 libxft-dev,
                 libxinerama-dev,
-                libxpm-dev
+                libxpm-dev,
 Standards-Version: 3.9.2
 Homepage: http://subforge.org/
-#Vcs-Git: git://git.debian.org/collab-maint/subtle.git
-#Vcs-Browser: http://git.debian.org/?p=collab-maint/subtle.git;a=summary
+Vcs-Git: git://github.com/formorer/pkg-subtle.git
+Vcs-Browser: http://github.com/formorer/pkg-subtle
 
 Package: subtle
 Architecture: any
