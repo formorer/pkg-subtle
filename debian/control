@@ -19,7 +19,7 @@ Vcs-Browser: http://github.com/formorer/pkg-subtle
 
 Package: subtle
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, ruby1.9.1
+Depends: ${shlibs:Depends}, ${misc:Depends}, ruby1.9.1, ruby-archive-tar-minitar
 Description: grid-based manual tiling window manager
  Grid-based manual tiling window manager with a strong focus on easy but
  customizable look and feel.
