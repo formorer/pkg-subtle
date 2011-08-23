@@ -1,3 +1,10 @@
+subtle (0.10.3008nu-2) unstable; urgency=low
+
+  * [7a302c7] Add VCS fields to control file
+  * [81803e3] Add dependency on ruby-archive-tar-minitar (for sur)
+
+ -- Alexander Wirt <formorer@debian.org>  Tue, 23 Aug 2011 19:31:33 +0200
+
 subtle (0.10.3008nu-1) unstable; urgency=low
 
   * Initial release (Closes: #638650)
