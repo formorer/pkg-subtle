@@ -13,6 +13,7 @@
 	dh $@ --with dpatch
 
 override_dh_clean:
+	dh_dpatch_unpatch
 	dh_clean
 	rake1.9.1 clobber
 
