@@ -10,7 +10,7 @@
 #export DH_VERBOSE=1
 
 %:
-	dh $@
+	dh $@ --with-dpatch
 
 override_dh_clean:
 	dh_clean
