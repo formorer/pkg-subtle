@@ -1,3 +1,10 @@
+subtle (0.10.3008nu-3) unstable; urgency=low
+
+  * [ef58a45] Add dpatch support
+  * [477ecc9] Don't rely on gem to check depencys for sublets
+
+ -- Alexander Wirt <formorer@debian.org>  Sat, 05 Nov 2011 22:09:48 +0100
+
 subtle (0.10.3008nu-2) unstable; urgency=low
 
   * [7a302c7] Add VCS fields to control file
