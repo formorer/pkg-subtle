@@ -3,13 +3,14 @@
   * @package subtle
   *
   * @file Main functions
-  * @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtle/subtle.c,v 2972 2011/08/02 10:57:41 unexist $
+  * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtle/subtle.c,v 3190 2012/03/16 22:54:45 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
   **/
 
+#include <stdarg.h>
 #include <getopt.h>
 #include <sys/wait.h>
 #include <sys/time.h>
@@ -63,16 +64,16 @@ SubtleUsage(void)
 {
   printf("Usage: %s [OPTIONS]\n\n" \
          "Options:\n" \
-         "  -c, --config=FILE       Load config\n" \
-         "  -d, --display=DISPLAY   Connect to DISPLAY\n" \
-         "  -h, --help              Show this help and exit\n" \
-         "  -k, --check             Check config syntax\n" \
-         "  -n, --no-randr          Disable RandR extension (required for Twinview)\n" \
-         "  -r, --replace           Replace current window manager\n" \
-         "  -s, --sublets=DIR       Load sublets from DIR\n" \
-         "  -v, --version           Show version info and exit\n" \
-         "  -l, --level             Set logging level\n" \
-         "  -D, --debug             Print debugging messages\n" \
+         "  -c, --config=FILE          Load config\n" \
+         "  -d, --display=DISPLAY      Connect to DISPLAY\n" \
+         "  -h, --help                 Show this help and exit\n" \
+         "  -k, --check                Check config syntax\n" \
+         "  -n, --no-randr             Disable RandR extension (required for Twinview)\n" \
+         "  -r, --replace              Replace current window manager\n" \
+         "  -s, --sublets=DIR          Load sublets from DIR\n" \
+         "  -v, --version              Show version info and exit\n" \
+         "  -l, --level=LEVEL[,LEVEL]  Set logging levels\n" \
+         "  -D, --debug                Print debugging messages\n" \
          "\nPlease report bugs at %s\n",
          PKG_NAME, PKG_BUGREPORT);
 } /* }}} */
@@ -81,7 +82,7 @@ SubtleUsage(void)
 static void
 SubtleVersion(void)
 {
-  printf("%s %s - Copyright (c) 2005-2011 Christoph Kappel\n" \
+  printf("%s %s - Copyright (c) 2005-2012 Christoph Kappel\n" \
          "Released under the GNU General Public License\n" \
          "Compiled for X%dR%d and Ruby %s\n",
          PKG_NAME, PKG_VERSION, X_PROTOCOL, X_PROTOCOL_REVISION, RUBY_VERSION);
@@ -115,8 +116,6 @@ SubtleLevel(const char *str)
         level |= SUB_LOG_RUBY;
       else if(0 == strncasecmp(tok, "xerror", 6))
         level |= SUB_LOG_XERROR;
-      else if(0 == strncasecmp(tok, "subtlext", 8))
-        level |= SUB_LOG_SUBTLEXT;
       else if(0 == strncasecmp(tok, "subtle", 6))
         level |= SUB_LOG_SUBTLE;
       else if(0 == strncasecmp(tok, "debug", 4))
@@ -164,76 +163,55 @@ subSubtleTime(void)
   return tv.tv_sec;
 } /* }}} */
 
- /** subSubtleFocus {{{
-  * @brief Get pointer window and focus it
-  * @param[in]  focus  Focus next client
-  * @return New focus window
+ /** subSubtleLog {{{
+  * @brief Print messages depending on type
+  * @param[in]  level   Message level
+  * @param[in]  file    File name
+  * @param[in]  line    Line number
+  * @param[in]  format  Message format
+  * @param[in]  ...     Variadic arguments
   **/
 
-Window
-subSubtleFocus(int focus)
+void
+subSubtleLog(int level,
+  const char *file,
+  int line,
+  const char *format,
+  ...)
 {
-  int sid = 0;
-  SubClient *c = NULL;
-  SubScreen *s = NULL;
+  va_list ap;
+  char buf[255];
 
-  /* Get current screen */
-  s = subScreenCurrent(&sid);
+#ifdef DEBUG
+  if(!(subtle->loglevel & level)) return;
+#endif /* DEBUG */
 
-  /* Find next window */
-  if(focus)
-    {
-      int i;
+  /* Get variadic arguments */
+  va_start(ap, format);
+  vsnprintf(buf, sizeof(buf), format, ap);
+  va_end(ap);
 
-      /* Check focus history */
-      for(i = 1; i < HISTORYSIZE; i++)
-        {
-          if((c = CLIENT(subSubtleFind(subtle->windows.focus[i], CLIENTID))))
-            {
-              /* Check visibility on current screen */
-              if(c->screen == sid && ALIVE(c) &&
-                  VISIBLE(subtle->visible_tags, c) &&
-                  c->win != subtle->windows.focus[0])
-                {
-                  subClientFocus(c);
-                  subClientWarp(c, True);
-
-                  return c->win;
-                }
-            }
-        }
-
-      /* Check client list backwards to get fullscreen first */
-      for(i = subtle->clients->ndata - 1; i > 0; i--)
-        {
-          c = CLIENT(subtle->clients->data[i]);
-
-          /* Check visibility on current screen */
-          if(c->screen == sid && ALIVE(c) &&
-              VISIBLE(subtle->visible_tags, c) &&
-              c->win != subtle->windows.focus[0])
-            {
-              subClientFocus(c);
-              subClientWarp(c, True);
-
-              return c->win;
-            }
-        }
-    }
-
-  /* Fallback to root */
-  subtle->windows.focus[0] = ROOT;
-  subGrabSet(ROOT);
-  XSetInputFocus(subtle->dpy, ROOT, RevertToPointerRoot, CurrentTime);
-
-  subScreenUpdate();
-  subScreenRender();
-
-  /* EWMH: Current destop */
-  subEwmhSetCardinals(ROOT, SUB_EWMH_NET_CURRENT_DESKTOP,
-    (long *)&s->vid, 1);
-
-  return ROOT;
+  /* Print according to loglevel */
+  if(level & SUB_LOG_WARN)
+    fprintf(stdout, "<WARNING> %s", buf);
+  else if(level & SUB_LOG_ERROR)
+    fprintf(stderr, "<ERROR> %s", buf);
+  else if(level & SUB_LOG_SUBLET)
+    fprintf(stderr, "<WARNING SUBLET %s> %s", file, buf);
+  else if(level & SUB_LOG_DEPRECATED)
+    fprintf(stdout, "<DEPRECATED> %s", buf);
+#ifdef DEBUG
+  else if(level & SUB_LOG_EVENTS)
+    fprintf(stderr, "<EVENTS> %s:%d: %s", file, line, buf);
+  else if(level & SUB_LOG_RUBY)
+    fprintf(stderr, "<RUBY> %s:%d: %s", file, line, buf);
+  else if(level & SUB_LOG_XERROR)
+    fprintf(stderr, "<XERROR> %s", buf);
+  else if(level & SUB_LOG_SUBTLE)
+    fprintf(stderr, "<SUBTLE> %s:%d: %s", file, line, buf);
+  else if(level & SUB_LOG_DEBUG)
+    fprintf(stderr, "<DEBUG> %s:%d: %s", file, line, buf);
+#endif /* DEBUG */
 } /* }}} */
 
  /** subSubtleFinish {{{
@@ -248,45 +226,40 @@ subSubtleFinish(void)
       if(subtle->dpy)
         XSync(subtle->dpy, False); ///< Sync before going on
 
-      /* Hook: Exit */
-      subHookCall(SUB_HOOK_EXIT, NULL);
+      /* Handle hooks first */
+      if(subtle->hooks)
+        {
+          /* Hook: Exit */
+          subHookCall(SUB_HOOK_EXIT, NULL);
 
-      /* Clear hooks first to stop calling */
-      subArrayClear(subtle->hooks, True);
+          /* Clear hooks first to stop calling */
+          subArrayClear(subtle->hooks, True);
+        }
 
       /* Kill arrays */
-      subArrayKill(subtle->clients,   True);
-      subArrayKill(subtle->grabs,     True);
-      subArrayKill(subtle->gravities, True);
-      subArrayKill(subtle->screens,   True);
-      subArrayKill(subtle->sublets,   False);
-      subArrayKill(subtle->tags,      True);
-      subArrayKill(subtle->trays,     True);
-      subArrayKill(subtle->views,     True);
-      subArrayKill(subtle->hooks,     False);
+      if(subtle->clients)   subArrayKill(subtle->clients,   True);
+      if(subtle->grabs)     subArrayKill(subtle->grabs,     True);
+      if(subtle->gravities) subArrayKill(subtle->gravities, True);
+      if(subtle->screens)   subArrayKill(subtle->screens,   True);
+      if(subtle->sublets)   subArrayKill(subtle->sublets,   False);
+      if(subtle->tags)      subArrayKill(subtle->tags,      True);
+      if(subtle->trays)     subArrayKill(subtle->trays,     True);
+      if(subtle->views)     subArrayKill(subtle->views,     True);
+      if(subtle->hooks)     subArrayKill(subtle->hooks,     False);
 
-      /* Kill styles */
-      if(subtle->styles.all.styles)
-        subArrayKill(subtle->styles.all.styles,       True);
-      if(subtle->styles.views.styles)
-        subArrayKill(subtle->styles.views.styles,     True);
-      if(subtle->styles.title.styles)
-        subArrayKill(subtle->styles.title.styles,     True);
-      if(subtle->styles.sublets.styles)
-        subArrayKill(subtle->styles.sublets.styles,   True);
-      if(subtle->styles.separator.styles)
-        subArrayKill(subtle->styles.separator.styles, True);
-      if(subtle->styles.clients.styles)
-        subArrayKill(subtle->styles.clients.styles,   True);
-      if(subtle->styles.subtle.styles)
-        subArrayKill(subtle->styles.subtle.styles,    True);
+      /* Reset styles to free fonts and substyles */
+      subStyleReset(&subtle->styles.all,       0);
+      subStyleReset(&subtle->styles.views,     0);
+      subStyleReset(&subtle->styles.title,     0);
+      subStyleReset(&subtle->styles.sublets,   0);
+      subStyleReset(&subtle->styles.separator, 0);
+      subStyleReset(&subtle->styles.clients,   0);
+      subStyleReset(&subtle->styles.subtle,    0);
 
       subEventFinish();
       subRubyFinish();
       subEwmhFinish();
       subDisplayFinish();
-
-      if(subtle->separator.string) free(subtle->separator.string);
 
       free(subtle);
     }
@@ -310,19 +283,19 @@ main(int argc,
     { "replace",  no_argument,       0, 'r' },
     { "sublets",  required_argument, 0, 's' },
     { "version",  no_argument,       0, 'v' },
-#ifdef DEBUG
     { "level",    required_argument, 0, 'l' },
     { "debug",    no_argument,       0, 'D' },
-#endif /* DEBUG */
     { 0, 0, 0, 0}
   };
 
   /* Create subtle */
   subtle = (SubSubtle *)(subSharedMemoryAlloc(1, sizeof(SubSubtle)));
-  subtle->flags |= (SUB_SUBTLE_XRANDR|SUB_SUBTLE_XINERAMA);
+  subtle->flags    |= (SUB_SUBTLE_XRANDR|SUB_SUBTLE_XINERAMA);
+  subtle->loglevel  = DEFAULT_LOGLEVEL;
 
   /* Parse arguments */
-  while(-1 != (c = getopt_long(argc, argv, "c:d:hknrs:vl:D", long_options, NULL)))
+  while(-1 != (c = getopt_long(argc, argv, "c:d:hknrs:vl:D",
+      long_options, NULL)))
     {
       switch(c)
         {
@@ -336,11 +309,11 @@ main(int argc,
           case 'v': SubtleVersion();                      return 0;
 #ifdef DEBUG
           case 'l':
-            subSharedLogLevel(SubtleLevel(optarg));
+            subtle->loglevel = SubtleLevel(optarg);
             break;
           case 'D':
-            subtle->flags |= SUB_SUBTLE_DEBUG;
-            subSharedLogLevel(DEFAULT_LOGLEVEL|DEBUG_LOGLEVEL);
+            subtle->flags    |= SUB_SUBTLE_DEBUG;
+            subtle->loglevel |= DEBUG_LOGLEVEL;
             break;
 #else /* DEBUG */
           case 'l':
@@ -368,18 +341,13 @@ main(int argc,
   /* Load and check config only */
   if(subtle->flags & SUB_SUBTLE_CHECK)
     {
-      int ret = 0;
-
       subRubyInit();
-
-      if((ret = subRubyLoadConfig()))
-        printf("Syntax OK\n");
-
+      subRubyLoadConfig();
       subRubyFinish();
 
-      free(subtle);
+      free(subtle); ///< We just need to free this
 
-      return !ret;
+      return 0;
     }
 
   /* Alloc arrays */

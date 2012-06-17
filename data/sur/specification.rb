@@ -1,9 +1,10 @@
+# -*- encoding: utf-8 -*-
 #
 # @package sur
 #
 # @file Specification functions
-# @author Christoph Kappel <unexist@dorfelite.net>
-# @version $Id: data/sur/specification.rb,v 2742 2011/03/26 22:32:45 unexist $
+# @author Christoph Kappel <unexist@subforge.org>
+# @version $Id: data/sur/specification.rb,v 3182 2012/02/04 16:39:33 unexist $
 #
 # This program can be distributed under the terms of the GNU GPLv2.
 # See the file COPYING for details.
@@ -88,7 +89,7 @@ module Subtle # {{{
         @path             = Dir.pwd
 
         # Pass to block
-        yield(self) if(block_given?)
+        yield(self) if block_given?
       end # }}}
 
       ## Subtle::Sur::Specification::load_spec {{{
@@ -112,14 +113,14 @@ module Subtle # {{{
           # Create spec
           spec      = eval(File.open(file).read)
           spec.path = File.dirname(file)
-        rescue
+        rescue Exception => e
           spec = nil
         end
 
         # Check object
-        if(spec.nil? || !spec.is_a?(Specification))
-          raise "Can't extract specification from file `#{file}'"
-        elsif(!spec.valid?)
+        if spec.nil? or !spec.is_a?(Specification)
+          raise "Cannot read specification file `#{file}'"
+        elsif !spec.valid?
           raise spec.validate
         end
 
@@ -147,7 +148,7 @@ module Subtle # {{{
           File.open(file, "rb") do |input|
             Archive::Tar::Minitar::Input.open(input) do |tar|
               tar.each do |entry|
-                if(".spec" == File.extname(entry.full_name))
+                if ".spec" == File.extname(entry.full_name)
                   spec = eval(entry.read)
                 end
               end
@@ -158,9 +159,9 @@ module Subtle # {{{
         end
 
         # Check object
-        if(spec.nil? || !spec.is_a?(Specification))
-          raise "Can't extract specification from file `#{file}'"
-        elsif(!spec.valid?)
+        if spec.nil? or !spec.is_a?(Specification)
+          raise "Cannot extract specification from file `#{file}'"
+        elsif !spec.valid?
           raise spec.validate
         end
 
@@ -190,7 +191,7 @@ module Subtle # {{{
         spec    = File.join(folder, name + ".spec")
         sublet  = File.join(folder, name + ".rb")
 
-        unless(File.exist?(name))
+        unless File.exist?(name)
           FileUtils.mkdir_p([ folder ])
 
           # Create spec
@@ -273,14 +274,14 @@ EOF
       #   => true
 
       def valid?
-        (!@name.nil? && !@authors.empty? && !@contact.nil? && \
-          !@description.nil? && !@version.nil? && !@files.empty?)
+        (!@name.nil? and !@authors.empty? and !@contact.nil? and \
+          !@description.nil? and !@version.nil? and !@files.empty?)
       end # }}}
 
       ## Subtle::Sur::Specification::validate {{{
       # Check if a specification is valid
       #
-      # @raise [String] Validity error
+      # @raise [String] Validation error
       # @since 0.1
       #
       # @example
@@ -298,7 +299,7 @@ EOF
         fields.push("version")     if(@version.nil?)
         fields.push("files")       if(@files.empty?)
 
-        unless(fields.empty?)
+        unless fields.empty?
           raise SpecificationValidationError,
             "Couldn't find `#{fields.join(", ")}' in specification"
         end
@@ -332,47 +333,62 @@ EOF
       #   => true
 
       def satisfied?
-        satisfied = true
+        satisfied_version = true
+        satisfied_deps    = true
         missing   = []
 
         # Check subtlext version
-        unless(@required_version.nil?)
+        unless @required_version.nil?
           begin
             require "subtle/subtlext"
 
-            # Check version
+            # Check subtlext version
             major_have, minor_have, teeny_have = Subtlext::VERSION.split(".").map(&:to_i)
             major_need, minor_need, teeny_need = @required_version.split(".").map(&:to_i)
 
             if(major_need > major_have or minor_need > minor_have or
                teeny_need.nil? or teeny_have.nil? or teeny_need > teeny_have)
-              puts ">>> ERROR: Need at least subtle >= #{@required_version}"
-
-              satisfied = false
+              satisfied_version = false
             end
           rescue => err
-            puts ">>> ERROR: Failed checking version of subtlext"
+            puts ">>> ERROR: Couldn't verify version of subtle"
 
-            satisfied = false
+            satisfied_version = false
           end
         end
 
-        # Just try to load the gem and catch errors
+        # Check gem dependencies
         @dependencies.each do |k, v|
           begin
             gem(k, v)
           rescue Gem::LoadError
-            missing.push("%s (%s)" % [ k, v])
+            # Try to load it
+            begin
+              require k
 
-            satisfied = false
+              puts ">>> WARNING: Couldn't verify version of `#{k}' with rubygems"
+            rescue LoadError
+              missing.push("%s (%s)" % [ k, v])
+
+              satisfied_deps = false
+            end
           end
         end
 
-        unless(missing.empty?)
-          puts ">>> ERROR: Following gems are missing: #{missing.join(", ")}"
+        # Dump errors
+        unless satisfied_version or satisfied_deps
+          puts ">>> ERROR: Couldn't install `#{@name}' due to unsatisfied requirements."
+
+          unless(satisfied_version)
+            puts "           Subtle >=#{@required_version} (found: #{Subtlext::VERSION}) is required."
+          end
+
+          unless(missing.empty?)
+            puts "           Following gems are missing: #{missing.join(", ")}"
+          end
         end
 
-        satisfied
+        satisfied_version and satisfied_deps
       end # }}}
 
       ## Subtle::Sur::Specification::to_str {{{
@@ -402,7 +418,7 @@ EOF
         ret = nil
 
         # Check if symbol is a method or a var
-        if(self.respond_to?(meth))
+        if self.respond_to?(meth)
           ret = self.send(meth, args)
         else
           sym = ("@" + meth.to_s).to_sym #< Construct symbol

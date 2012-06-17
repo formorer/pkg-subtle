@@ -3,8 +3,8 @@
   * @package subtle
   *
   * @file EWMH functions
-  * @copyright Copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtle/ewmh.c,v 2987 2011/08/07 14:13:04 unexist $
+  * @copyright Copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtle/ewmh.c,v 3168 2012/01/03 16:02:50 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -72,17 +72,17 @@ subEwmhInit(void)
     /* subtle */
     "SUBTLE_CLIENT_TAGS", "SUBTLE_CLIENT_RETAG",
     "SUBTLE_CLIENT_GRAVITY", "SUBTLE_CLIENT_SCREEN", "SUBTLE_CLIENT_FLAGS",
-    "SUBTLE_GRAVITY_NEW", "SUBTLE_GRAVITY_LIST", "SUBTLE_GRAVITY_KILL",
+    "SUBTLE_GRAVITY_NEW", "SUBTLE_GRAVITY_FLAGS", "SUBTLE_GRAVITY_LIST",
+    "SUBTLE_GRAVITY_KILL",
     "SUBTLE_TAG_NEW", "SUBTLE_TAG_LIST", "SUBTLE_TAG_KILL", "SUBTLE_TRAY_LIST",
     "SUBTLE_VIEW_NEW", "SUBTLE_VIEW_TAGS", "SUBTLE_VIEW_STYLE",
     "SUBTLE_VIEW_ICONS", "SUBTLE_VIEW_KILL",
-    "SUBTLE_SUBLET_NEW", "SUBTLE_SUBLET_UPDATE", "SUBTLE_SUBLET_DATA",
-    "SUBTLE_SUBLET_STYLE", "SUBTLE_SUBLET_FLAGS", "SUBTLE_SUBLET_LIST",
-    "SUBTLE_SUBLET_KILL",
+    "SUBTLE_SUBLET_UPDATE", "SUBTLE_SUBLET_DATA", "SUBTLE_SUBLET_STYLE",
+    "SUBTLE_SUBLET_FLAGS", "SUBTLE_SUBLET_LIST", "SUBTLE_SUBLET_KILL",
     "SUBTLE_SCREEN_PANELS", "SUBTLE_SCREEN_VIEWS", "SUBTLE_SCREEN_JUMP",
     "SUBTLE_VISIBLE_TAGS", "SUBTLE_VISIBLE_VIEWS",
     "SUBTLE_RENDER", "SUBTLE_RELOAD", "SUBTLE_RESTART", "SUBTLE_QUIT",
-    "SUBTLE_COLORS", "SUBTLE_FONT", "SUBTLE_DATA"
+    "SUBTLE_COLORS", "SUBTLE_FONT", "SUBTLE_DATA", "SUBTLE_VERSION"
   };
 
   assert(SUB_EWMH_TOTAL == LENGTH(names));
@@ -92,7 +92,7 @@ subEwmhInit(void)
   selection = (char *)subSharedMemoryAlloc(len, sizeof(char));
 
   snprintf(selection, len, "%s%u", names[SUB_EWMH_NET_SYSTEM_TRAY_SELECTION], SCRN);
-  subSharedLogDebug("Selection: len=%d, name=%s\n", len, selection);
+  subSubtleLogDebug("Selection: len=%d, name=%s\n", len, selection);
   names[SUB_EWMH_NET_SYSTEM_TRAY_SELECTION] = selection;
 
   /* Register atoms */
@@ -111,6 +111,8 @@ subEwmhInit(void)
   subEwmhSetString(subtle->windows.support, SUB_EWMH_NET_WM_NAME, PKG_NAME);
   subEwmhSetString(subtle->windows.support, SUB_EWMH_WM_CLASS, PKG_NAME);
   subEwmhSetCardinals(subtle->windows.support, SUB_EWMH_NET_WM_PID, &pid, 1);
+  subEwmhSetString(subtle->windows.support,
+    SUB_EWMH_SUBTLE_VERSION, PKG_VERSION);
 
   /* EWMH: Desktop geometry */
   data[0] = subtle->width;
@@ -121,7 +123,7 @@ subEwmhInit(void)
   subEwmhSetWindows(ROOT, SUB_EWMH_NET_CLIENT_LIST, NULL, 0);
   subEwmhSetWindows(ROOT, SUB_EWMH_NET_CLIENT_LIST_STACKING, NULL, 0);
 
-  subSharedLogDebugSubtle("init=ewmh\n");
+  subSubtleLogDebugSubtle("Init\n");
 } /* }}} */
 
  /** subEwmhGet {{{
@@ -201,7 +203,7 @@ subEwmhGetXEmbedState(Window win)
     {
       flags = (long)info->flags;
 
-      subSharedLogDebug("XEmbedInfo: win=%#lx, version=%ld, flags=%ld, mapped=%ld\n",
+      subSubtleLogDebug("XEmbedInfo: win=%#lx, version=%ld, flags=%ld, mapped=%ld\n",
         win, info->version, info->flags, info->flags & XEMBED_MAPPED);
 
       XFree(info);
@@ -408,7 +410,7 @@ subEwmhFinish(void)
       subSharedPropertyDelete(subtle->dpy, ROOT, subEwmhGet(SUB_EWMH_SUBTLE_VISIBLE_TAGS));
     }
 
-  subSharedLogDebugSubtle("finish=ewmh\n");
+  subSubtleLogDebugSubtle("Finish\n");
 } /* }}} */
 
 // vim:ts=2:bs=2:sw=2:et:fdm=marker

@@ -1,8 +1,9 @@
+# -*- encoding: utf-8 -*-
 #
 # @package subtle
 #
 # @file Rake build file
-# @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
+# @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
 # @version $Id$
 #
 # This program can be distributed under the terms of the GNU GPL.
@@ -61,18 +62,18 @@ end
   "builddir"   => "build",
   "hdrdir"     => "",
   "archdir"    => "",
-  "revision"   => "3008", #< Latest stable
+  "revision"   => "3216", #< Latest stable
   "cflags"     => "-Wall -Werror -Wpointer-arith -Wstrict-prototypes -Wunused -Wshadow -std=gnu99",
   "cpppath"    => "-I. -I$(builddir) -Isrc -Isrc/shared -Isrc/subtle -idirafter$(hdrdir) -idirafter$(archdir)",
-  "ldflags"    => "-L$(libdir) $(rpath) -l$(RUBY_SO_NAME)",
-  "extflags"   => "$(LDFLAGS) $(rpath) -l$(RUBY_SO_NAME)",
+  "ldflags"    => "-L$(libdir) $(rpath) $(LIBS) -l$(RUBY_SO_NAME)",
+  "extflags"   => "$(LDFLAGS) $(rpath) $(LIBS) -l$(RUBY_SO_NAME)",
   "rpath"      => "-L$(libdir) -Wl,-rpath=$(libdir)",
   "checksums"  => []
 }
 
 @defines = {
   "PKG_NAME"      => "subtle",
-  "PKG_VERSION"   => "0.10.$(revision)",
+  "PKG_VERSION"   => "0.11.$(revision)",
   "PKG_BUGREPORT" => "http://subforge.org/projects/subtle/issues",
   "PKG_CONFIG"    => "subtle.rb",
   "RUBY_VERSION"  => "$(MAJOR).$(MINOR).$(TEENY)"
@@ -123,10 +124,10 @@ CLOBBER.include(@options["builddir"], "config.h", "config.log", "config.yml")
 
 def silent_sh(cmd, msg, &block)
   # FIXME: Hide raw messages in 0.8.7 and 0.9.1
-  unless(true === RakeFileUtils.verbose or
+  unless true === RakeFileUtils.verbose or
       (defined? Rake::FileUtilsExt and
       Rake::FileUtilsExt.respond_to? :verbose_flag and
-      true === Rake::FileUtilsExt.verbose_flag))
+      true === Rake::FileUtilsExt.verbose_flag)
     rake_output_message(msg)
   else
     rake_output_message(Array == cmd.class ? cmd.join(" ") : cmd) #< Check type
@@ -192,7 +193,7 @@ end # }}}
  ##
 
 def compile(src, out = nil, options = "")
-  out = File.join(@options["builddir"], File.basename(src).ext("o")) unless(!out.nil?)
+  out = File.join(@options["builddir"], File.basename(src).ext("o")) if out.nil?
   opt = ["shared.c", "subtlext.c"].include?(File.basename(src)) ? " -fPIC " : ""
   opt << options
 
@@ -246,25 +247,19 @@ task(:config) do
     File.join(@options["builddir"], "subtle"),
     File.join(@options["builddir"], "subtlext")
   ].each do |dir|
-    FileUtils.mkdir_p(dir) unless(File.exist?(dir))
+    FileUtils.mkdir_p(dir) unless File.exist?(dir)
   end
 
   # Check if options.yaml exists or config is run explicitly
-  if((!ARGV.nil? && !ARGV.include?("config")) && File.exist?("config.yml"))
+  if( !ARGV.nil? and !ARGV.include?("config")) and File.exist?("config.yml")
     yaml = YAML::load(File.open("config.yml"))
     @options, @defines = YAML::load(yaml)
 
-    make_config unless(checksums)
+    make_config unless checksums
   else
     # Check version
-    if(1 != RbConfig::CONFIG["MAJOR"].to_i or 9 != RbConfig::CONFIG["MINOR"].to_i)
+    if 1 != RbConfig::CONFIG["MAJOR"].to_i or 9 != RbConfig::CONFIG["MINOR"].to_i
       fail("Ruby 1.9.0 or higher required")
-    end
-
-    # FIXME: Init_prelude is hidden in 1.9.3 and we need to
-    # fallback to the ruby_options2 hack
-    if("1.9.3" != RUBY_VERSION)
-      $defs.push("-DHAVE_RUBY_INIT_PRELUDE")
     end
 
     checksums
@@ -274,29 +269,29 @@ task(:config) do
 
     # Get options
     @options.each_key do |k|
-      if(!ENV[k].nil?)
+      unless ENV[k].nil?
         @options[k] = ENV[k]
       end
     end
 
     # Debug
-    if("yes" == @options["debug"])
+    if "yes" == @options["debug"]
       @options["cflags"] << " -g -DDEBUG"
     else
       @options["cflags"] << " -DNDEBUG"
     end
 
     # Get revision
-    if(File.exists?(".hg") && (hg = find_executable0("hg")))
+    if File.exists?(".hg") and (hg = find_executable0("hg"))
       match = `#{hg} tip`.match(/^[^:]+:\s*(\d+).*/)
 
-      if(!match.nil? && 2 == match.size)
+      if !match.nil? and 2 == match.size
         @options["revision"] = match[1]
       end
     end
 
     # Get ruby header dir
-    if(RbConfig::CONFIG["rubyhdrdir"].nil?)
+    if RbConfig::CONFIG["rubyhdrdir"].nil?
       @options["hdrdir"] = RbConfig.expand(
         RbConfig::CONFIG["archdir"]
       )
@@ -317,7 +312,7 @@ task(:config) do
     )
     [@options, @defines].each do |hash|
       hash.each do |k, v|
-        if(v.is_a?(String))
+        if v.is_a?(String)
           hash[k] = RbConfig.expand(
             v, CONFIG.merge(@options.merge(@defines))
           )
@@ -325,11 +320,14 @@ task(:config) do
       end
     end
 
+    # Check arch
+    if RbConfig::CONFIG["arch"].match(/openbsd/)
+      $defs.push("-DIS_OPENBSD")
+    end
+
     # Check header
     HEADER.each do |h|
-      unless(have_header(h))
-        fail("Header #{h} was not found")
-      end
+      fail("Header #{h} was not found") unless have_header(h)
     end
 
     # Check optional headers
@@ -343,12 +341,12 @@ task(:config) do
       lib = " -lexecinfo"
 
       # Check if execinfo is a separate lib (freebsd)
-      if(find_header("execinfo.h"))
-        if(try_func("backtrace", ""))
+      if find_header("execinfo.h")
+        if try_func("backtrace", "")
           $defs.push("-DHAVE_EXECINFO_H")
 
           ret = true
-        elsif(try_func("backtrace", lib))
+        elsif try_func("backtrace", lib)
           @options["ldflags"] << lib
           $defs.push("-DHAVE_EXECINFO_H")
 
@@ -362,9 +360,7 @@ task(:config) do
     # Check pkg-config for X11
     checking_for("X11/Xlib.h") do
       cflags, ldflags, libs = pkg_config("x11")
-      if(libs.nil?)
-        fail("X11 was not found")
-      end
+      fail("X11 was not found") if libs.nil?
 
       # Update flags
       @options["cflags"]   << " %s" % [ cflags ]
@@ -375,12 +371,12 @@ task(:config) do
     end
 
     # Check pkg-config for Xpm
-    if("yes" == @options["xpm"])
+    if "yes" == @options["xpm"]
       checking_for("X11/Xpm.h") do
         ret = false
 
         cflags, ldflags, libs = pkg_config("xpm")
-        unless(libs.nil?)
+        unless libs.nil?
           # Update flags
           @options["cpppath"] << " %s" % [ cflags ]
           @options["extflags"] << " %s %s" % [ ldflags, libs ]
@@ -396,12 +392,12 @@ task(:config) do
     end
 
     # Check pkg-config for Xft
-    if("yes" == @options["xft"])
+    if "yes" == @options["xft"]
       checking_for("X11/Xft/Xft.h") do
         ret = false
 
         cflags, ldflags, libs = pkg_config("xft")
-        unless(libs.nil?)
+        unless libs.nil?
           # Update flags
           @options["cpppath"] << " %s" % [ cflags ]
           @options["ldflags"] << " %s %s" % [ ldflags, libs ]
@@ -418,23 +414,23 @@ task(:config) do
     end
 
     # Xinerama
-    if("yes" == @options["xinerama"])
-      if(have_header("X11/extensions/Xinerama.h"))
+    if "yes" == @options["xinerama"]
+      if have_header("X11/extensions/Xinerama.h")
         @options["ldflags"]  << " -lXinerama"
         @options["extflags"] << " -lXinerama"
       end
     end
 
     # Check Xrandr
-    if("yes" == @options["xrandr"])
+    if "yes" == @options["xrandr"]
       ret = false
 
       # Pkg-config
       checking_for("X11/extensions/Xrandr.h") do
         cflags, ldflags, libs = pkg_config("xrandr")
-        unless(libs.nil?)
+        unless libs.nil?
           # Version check (xrandr >= 1.3)
-          if(try_func("XRRGetScreenResourcesCurrent", libs))
+          if try_func("XRRGetScreenResourcesCurrent", libs)
             # Update flags
             @options["cflags"]  << " %s" % [ cflags ]
             @options["ldflags"] << " %s %s" % [ ldflags, libs ]
@@ -447,19 +443,19 @@ task(:config) do
           end
         end
 
-        @options["xrandr"] = "no" unless(ret)
+        @options["xrandr"] = "no" unless ret
 
         ret
       end
     end
 
     # Xtest
-    if("yes" == @options["xtest"])
+    if "yes" == @options["xtest"]
       ret = false
 
       checking_for("X11/extensions/XTest.h") do
         # Check for debian header/lib separation
-        if(try_func("XTestFakeKeyEvent", "-lXtst"))
+        if try_func("XTestFakeKeyEvent", "-lXtst")
           @options["extflags"] << " -lXtst"
 
           $defs.push("-DHAVE_X11_EXTENSIONS_XTEST_H")
@@ -469,7 +465,7 @@ task(:config) do
           puts "XTestFakeKeyEvent couldn't be found"
         end
 
-        @options["xtest"] = "no" unless(ret)
+        @options["xtest"] = "no" unless ret
 
         ret
       end
@@ -477,9 +473,7 @@ task(:config) do
 
     # Check functions
     FUNCS.each do |f|
-      if(!have_func(f))
-        fail("Func #{f} was not found")
-      end
+      fail("Func #{f} was not found") unless have_func(f)
     end
 
     # Encoding
@@ -542,7 +536,7 @@ task(PG_SUBTLEXT => [:config]) # }}}
 
 desc("Install subtle")
 task(:install => [:config, :build]) do
-  verbose = (:default != RakeFileUtils.verbose)
+  verbose = (true == RakeFileUtils.verbose)
 
   # Make install dirs
   FileUtils.mkdir_p(
@@ -561,21 +555,26 @@ task(:install => [:config, :build]) do
   FileUtils.install(
     File.join("data", @defines["PKG_CONFIG"]),
     @options["configdir"],
-    :mode => 0644, :verbose => verbose
+    :mode    => 0644,
+    :verbose => verbose
   )
 
   # Install subtle
   message("INSTALL %s\n" % [PG_SUBTLE])
   FileUtils.install(
-    PG_SUBTLE, @options["bindir"],
-    :mode => 0755, :verbose => verbose
+    PG_SUBTLE,
+    @options["bindir"],
+    :mode    => 0755,
+    :verbose => verbose
   )
 
   # Install subtlext
   message("INSTALL %s\n" % [PG_SUBTLEXT])
   FileUtils.install(
-    PG_SUBTLEXT + ".so", @options["extdir"],
-    :mode => 0644, :verbose => verbose
+    PG_SUBTLEXT + ".so",
+    @options["extdir"],
+    :mode    => 0644,
+    :verbose => verbose
   )
 
   # Get path of sed and ruby interpreter
@@ -589,8 +588,9 @@ task(:install => [:config, :build]) do
   message("INSTALL subtler\n")
   FileList["data/subtler/*.rb"].collect do |f|
     FileUtils.install(f,
-    File.join(@options["extdir"], "subtler"),
-      :mode => 0644, :verbose => verbose
+      File.join(@options["extdir"], "subtler"),
+      :mode    => 0644,
+      :verbose => verbose
     )
   end
 
@@ -599,7 +599,8 @@ task(:install => [:config, :build]) do
   FileList["data/sur/*.rb"].collect do |f|
     FileUtils.install(f,
       File.join(@options["extdir"], "sur"),
-      :mode => 0644, :verbose => verbose
+      :mode    => 0644,
+      :verbose => verbose
     )
   end
 
@@ -607,7 +608,8 @@ task(:install => [:config, :build]) do
   message("INSTALL tools\n")
   FileList["data/bin/*"].collect do |f|
     FileUtils.install(f, @options["bindir"],
-      :mode => 0755, :verbose => verbose
+      :mode    => 0755,
+      :verbose => verbose
     )
 
     # Update interpreter name
@@ -619,7 +621,8 @@ task(:install => [:config, :build]) do
   message("INSTALL manpages\n")
   FileList["data/man/*.*"].collect do |f|
     FileUtils.install(f, @options["mandir"],
-      :mode => 0644, :verbose => verbose
+      :mode    => 0644,
+      :verbose => verbose
     )
   end
 end # }}}

@@ -3,8 +3,8 @@
   * @package subtle
   *
   * @file Tag functions
-  * @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtle/tag.c,v 2904 2011/06/23 14:41:19 unexist $
+  * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtle/tag.c,v 3209 2012/05/22 23:44:10 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -124,7 +124,7 @@ subTagNew(char *name,
       if(duplicate) *duplicate = False;
     }
 
-  subSharedLogDebugSubtle("new=tag, name=%s\n", name);
+  subSubtleLogDebugSubtle("New: name=%s\n", name);
 
   return t;
 } /* }}} */
@@ -241,10 +241,14 @@ subTagKill(SubTag *t)
       subArrayKill(t->matcher, False);
     }
 
+  /* Remove proc */
+  if(t->flags & SUB_TAG_PROC)
+    subRubyRelease(t->proc);
+
   free(t->name);
   free(t);
 
-  subSharedLogDebugSubtle("kill=tag\n");
+  subSubtleLogDebugSubtle("Kill\n");
 } /* }}} */
 
 /* All */
@@ -274,7 +278,7 @@ subTagPublish(void)
 
   free(names);
 
-  subSharedLogDebugSubtle("publish=tags, n=%d\n", i);
+  subSubtleLogDebugSubtle("Publish: tags=%d\n", i);
 } /* }}} */
 
 // vim:ts=2:bs=2:sw=2:et:fdm=marker

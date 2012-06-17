@@ -2,8 +2,8 @@
   * @package subtlext
   *
   * @file Gravity functions
-  * @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtlext/color.c,v 2923 2011/07/06 14:20:27 unexist $
+  * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtlext/color.c,v 3168 2012/01/03 16:02:50 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -67,7 +67,7 @@ ColorRGBToPixel(XColor *xcolor)
   xcolor->blue  = SCALE(xcolor->blue,  65535, 255);
 } /* }}} */
 
-/* Exported */
+/* Helper */
 
 /* subColorPixel {{{ */
 unsigned long
@@ -165,6 +165,8 @@ subColorInstantiate(unsigned long pixel)
 
   return color;
 } /* }}} */
+
+/* Class */
 
 /* subColorInit {{{ */
 /*

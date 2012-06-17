@@ -3,116 +3,18 @@
   * @package subtle
   *
   * @file Shared functions
-  * @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/shared/shared.c,v 3004 2011/08/17 12:32:00 unexist $
+  * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/shared/shared.c,v 3204 2012/05/22 21:15:06 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
   **/
 
-#include <stdarg.h>
 #include <ctype.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include "shared.h"
-
-/* Log */
-
-/* Enable default messages */
-static int loglevel = DEFAULT_LOGLEVEL;
-
- /** subSharedLogLevel {{{
-  * @brief Set loglevel
-  **/
-
-void
-subSharedLogLevel(int level)
-{
-  loglevel |= level;
-} /* }}} */
-
- /** subSharedLog {{{
-  * @brief Print messages depending on type
-  * @param[in]  level   Message level
-  * @param[in]  file    File name
-  * @param[in]  line    Line number
-  * @param[in]  format  Message format
-  * @param[in]  ...     Variadic arguments
-  **/
-
-void
-subSharedLog(int level,
-  const char *file,
-  int line,
-  const char *format,
-  ...)
-{
-  va_list ap;
-  char buf[255];
-
-#ifdef DEBUG
-  if(!(loglevel & level)) return;
-#endif /* DEBUG */
-
-  /* Get variadic arguments */
-  va_start(ap, format);
-  vsnprintf(buf, sizeof(buf), format, ap);
-  va_end(ap);
-
-  /* Print according to loglevel */
-  if(level & SUB_LOG_WARN)
-    fprintf(stdout, "<WARNING> %s", buf);
-  else if(level & SUB_LOG_ERROR)
-    fprintf(stderr, "<ERROR> %s", buf);
-  else if(level & SUB_LOG_SUBLET)
-    fprintf(stderr, "<WARNING SUBLET %s> %s", file, buf);
-  else if(level & SUB_LOG_DEPRECATED)
-    fprintf(stdout, "<DEPRECATED> %s", buf);
-#ifdef DEBUG
-  else if(level & SUB_LOG_EVENTS)
-    fprintf(stderr, "<EVENTS> %s:%d: %s", file, line, buf);
-  else if(level & SUB_LOG_RUBY)
-    fprintf(stderr, "<RUBY> %s:%d: %s", file, line, buf);
-  else if(level & SUB_LOG_XERROR)
-    fprintf(stderr, "<XERROR> %s", buf);
-  else if(level & SUB_LOG_SUBTLEXT)
-    fprintf(stderr, "<SUBTLEXT> %s:%d: %s", file, line, buf);
-  else if(level & SUB_LOG_SUBTLE)
-    fprintf(stderr, "<SUBTLE> %s:%d: %s", file, line, buf);
-  else if(level & SUB_LOG_DEBUG)
-    fprintf(stderr, "<DEBUG> %s:%d: %s", file, line, buf);
-#endif /* DEBUG */
-} /* }}} */
-
- /** subSharedLogXError {{{
-  * @brief Print X error messages
-  * @params[in]  disp  Display
-  * @params[in]  ev    A #XErrorEvent
-  * @return Returns zero
-  * @retval  0  Default return value
-  **/
-
-int
-subSharedLogXError(Display *disp,
-  XErrorEvent *ev)
-{
-#ifdef DEBUG
-  if(loglevel) return 0;
-#endif /* DEBUG */
-
-  if(42 != ev->request_code) /* X_SetInputFocus */
-    {
-      char error[255] = { 0 };
-
-      XGetErrorText(disp, ev->error_code, error, sizeof(error));
-      subSharedLog(SUB_LOG_XERROR, __FILE__, __LINE__,
-        "%s: win=%#lx, request=%d\n",
-        error, ev->resourceid, ev->request_code);
-    }
-
-  return 0;
-} /* }}} */
 
 /* Memory */
 
@@ -132,7 +34,9 @@ subSharedMemoryAlloc(size_t n,
   /* Check result */
   if(!(mem = calloc(n, size)))
     {
-      subSharedLogError("Failed allocating memory\n");
+      fprintf(stderr, "<ERROR> Failed allocating memory\n");
+
+      abort();
     }
 
   return mem;
@@ -151,9 +55,7 @@ subSharedMemoryRealloc(void *mem,
 {
   /* Check result */
   if(!(mem = realloc(mem, size)))
-    {
-      subSharedLogDebug("Memory has been freed. Expected?\n");
-    }
+    fprintf(stderr, "<ERROR> Memory has been freed. Expected?\n");
 
   return mem;
 } /* }}} */
@@ -188,7 +90,8 @@ subSharedRegexNew(char *pattern)
 
       onig_error_code_to_str((UChar*)ebuf, ecode, &einfo);
 
-      subSharedLogWarn("Failed compiling regex `%s': %s\n", pattern, ebuf);
+      fprintf(stderr, "<CRITICAL> Failed compiling regex `%s': %s\n",
+        pattern, ebuf);
 
       free(preg);
 
@@ -259,17 +162,11 @@ subSharedPropertyGet(Display *disp,
   /* Get property */
   if(Success != XGetWindowProperty(disp, win, prop, 0L, 4096,
       False, type, &rtype, &format, &nitems, &bytes, &data))
-    {
-      subSharedLogDebug("Failed getting property `%ld'\n", prop);
-
-      return NULL;
-    }
+    return NULL;
 
   /* Check result */
   if(type != rtype)
     {
-      subSharedLogDebug("Property: prop=%ld, type=%ld, rtype=%ld\n",
-        prop, type, rtype);
       XFree(data);
 
       return NULL;
@@ -468,241 +365,9 @@ subSharedPropertyDelete(Display *disp,
   XDeleteProperty(disp, win, prop);
 } /* }}} */
 
-/* Text */
+/* Draw */
 
- /** subSharedTextNew {{{
-  * @brief Parse text
-  * @return New #SubText
-  **/
-
-SubText *
-subSharedTextNew(void)
-{
-  return TEXT(subSharedMemoryAlloc(1, sizeof(SubText)));
-} /* }}} */
-
- /** subSharedTextParse {{{
-  * @brief Parse text
-  * @param[in]  disp  Display
-  * @param[in]  f     A #SubFont
-  * @param[in]  t     A #SubText
-  * @param[in]  text  String to parse
-  **/
-
-int
-subSharedTextParse(Display *disp,
-  SubFont *f,
-  SubText *t,
-  char *text)
-{
-  int i = 0, left = 0, right = 0;
-  char *tok = NULL;
-  long color = -1, pixmap = 0;
-  SubTextItem *item = NULL;
-
-  assert(f && t);
-
-  t->width = 0;
-
-  /* Split and iterate over tokens */
-  while((tok = strsep(&text, SEPARATOR)))
-    {
-      if('#' == *tok) color = strtol(tok + 1, NULL, 0); ///< Color
-      else if('\0' != *tok) ///< Text or icon
-        {
-          /* Re-use items to save alloc cycles */
-          if(i < t->nitems && (item = ITEM(t->items[i])))
-            {
-              if(!(item->flags & (SUB_TEXT_BITMAP|SUB_TEXT_PIXMAP)) &&
-                  item->data.string)
-                free(item->data.string);
-
-              item->flags &= ~(SUB_TEXT_EMPTY|SUB_TEXT_BITMAP|SUB_TEXT_PIXMAP);
-            }
-          else if((item = ITEM(subSharedMemoryAlloc(1, sizeof(SubTextItem)))))
-            {
-              /* Add icon to array */
-              t->items = (SubTextItem **)subSharedMemoryRealloc(t->items,
-                (t->nitems + 1) * sizeof(SubTextItem *));
-              t->items[(t->nitems)++] = item;
-            }
-
-          /* Get geometry of bitmap/pixmap */
-          if(('!' == *tok || '&' == *tok) &&
-              (pixmap = strtol(tok + 1, NULL, 0)))
-            {
-              XRectangle geometry = { 0 };
-
-              subSharedPropertyGeometry(disp, pixmap, &geometry);
-
-              item->flags    |= ('!' == *tok ? SUB_TEXT_BITMAP :
-                SUB_TEXT_PIXMAP);
-              item->data.num  = pixmap;
-              item->width     = geometry.width;
-              item->height    = geometry.height;
-
-              /* Add spacing and check if icon is first */
-              t->width += item->width + (0 == i ? 3 : 6);
-
-              item->color = color;
-            }
-          else ///< Ordinary text
-            {
-              item->data.string = strdup(tok);
-              item->width       = subSharedTextWidth(disp, f, tok,
-                strlen(tok), &left, &right, False);
-
-              /* Remove left bearing from first text item */
-              t->width += item->width - (0 == i ? left : 0);
-
-              item->color = color;
-            }
-
-          i++;
-        }
-    }
-
-  /* Mark other items a clean */
-  for(; i < t->nitems; i++)
-    ITEM(t->items[i])->flags |= SUB_TEXT_EMPTY;
-
-  /* Fix spacing of last item */
-  if(item)
-    {
-      if(item->flags & (SUB_TEXT_BITMAP|SUB_TEXT_PIXMAP))
-        t->width -= 2;
-      else
-        {
-          t->width    -= right;
-          item->width -= right;
-        }
-    }
-
-  return t->width;
-} /* }}} */
-
- /** subSharedTextRender {{{
-  * @brief Render text
-  * @param[in]  disp  Display
-  * @param[in]  gc    GC
-  * @param[in]  f     A #SubFont
-  * @param[in]  win   A #Window
-  * @param[in]  x     X position
-  * @param[in]  y     Y position
-  * @param[in]  fg    Foreground color
-  * @param[in]  icon  Icon color
-  * @param[in]  bg    Background color
-  * @param[in]  t     A #SubText
-  **/
-
-void
-subSharedTextRender(Display *disp,
-  GC gc,
-  SubFont *f,
-  Window win,
-  int x,
-  int y,
-  long fg,
-  long icon,
-  long bg,
-  SubText *t)
-{
-  int i, width = x;
-
-  assert(t);
-
-  /* Render text items */
-  for(i = 0; i < t->nitems; i++)
-    {
-      SubTextItem *item = ITEM(t->items[i]);
-
-      if(item->flags & SUB_TEXT_EMPTY) ///< Empty text
-        {
-          break; ///< Break loop
-        }
-      else if(item->flags & (SUB_TEXT_BITMAP|SUB_TEXT_PIXMAP)) ///< Icons
-        {
-          int icony = 0, dx = (0 == i) ? 0 : 3; ///< Add spacing when icon isn't first
-
-          icony = item->height > f->height ?
-            y - f->y - ((item->height - f->height) / 2): y - item->height;
-
-          subSharedTextIconDraw(disp, gc, win, width + dx, icony,
-            item->width, item->height, (-1 == item->color) ? icon : item->color,
-            bg, (Pixmap)item->data.num, (item->flags & SUB_TEXT_BITMAP));
-
-          /* Add spacing when icon isn't last */
-          width += item->width + dx + (i != t->nitems - 1 ? 3 : 0);
-        }
-      else ///< Text
-        {
-          subSharedTextDraw(disp, gc, f, win, width, y,
-            (-1 == item->color) ? fg : item->color, bg, 
-            item->data.string, strlen(item->data.string));
-
-          width += item->width;
-        }
-    }
-} /* }}} */
-
- /** subSharedTextWidth {{{
-  * @brief Get width of the smallest enclosing box
-  * @param[in]     disp    Display
-  * @param[in]     text    The text
-  * @param[in]     len     Length of the string
-  * @param[inout]  left    Left bearing
-  * @param[inout]  right   Right bearing
-  * @param[in]     center  Center text
-  * @return Width of the box
-  **/
-
-int
-subSharedTextWidth(Display *disp,
-  SubFont *f,
-  const char *text,
-  int len,
-  int *left,
-  int *right,
-  int center)
-{
-  int width = 0, lbearing = 0, rbearing = 0;
-
-  assert(f);
-
-  /* Get text extents based on font */
-  if(text && 0 < len)
-    {
-#ifdef HAVE_X11_XFT_XFT_H
-      if(f->xft) ///< XFT
-        {
-          XGlyphInfo extents;
-
-          XftTextExtentsUtf8(disp, f->xft, (XftChar8 *)text, len, &extents);
-
-          width    = extents.xOff;
-          lbearing = extents.x;
-        }
-      else ///< XFS
-#endif /* HAVE_X11_XFT_XFT_H */
-        {
-          XRectangle overall_ink = { 0 }, overall_logical = { 0 };
-
-          XmbTextExtents(f->xfs, text, len,
-            &overall_ink, &overall_logical);
-
-          width    = overall_logical.width;
-          lbearing = overall_logical.x;
-        }
-
-      /* Get left and right spacing */
-      if(left)  *left  = lbearing;
-      if(right) *right = rbearing;
-    }
-
-  return center ? width - abs(lbearing - rbearing) : width;
-} /* }}} */
-
- /** subSharedTextDraw {{{
+ /** subSharedDrawString {{{
   * @brief Draw text
   * @param[in]  disp  Display
   * @param[in]  gc    GC
@@ -717,7 +382,7 @@ subSharedTextWidth(Display *disp,
   **/
 
 void
-subSharedTextDraw(Display *disp,
+subSharedDrawString(Display *disp,
   GC gc,
   SubFont *f,
   Window win,
@@ -764,7 +429,7 @@ subSharedTextDraw(Display *disp,
     }
 } /* }}} */
 
- /** subSharedTextIconDraw {{{
+ /** subSharedDrawIcon {{{
   * @brief Draw text
   * @param[in]  disp    Display
   * @param[in]  gc      GC
@@ -780,7 +445,7 @@ subSharedTextDraw(Display *disp,
   **/
 
 void
-subSharedTextIconDraw(Display *disp,
+subSharedDrawIcon(Display *disp,
   GC gc,
   Window win,
   int x,
@@ -807,33 +472,6 @@ subSharedTextIconDraw(Display *disp,
 #endif /* HAVE_X11_XPM_H */
 } /* }}} */
 
- /** subSharedTextFree {{{
-  * @brief Free text
-  * @param[in]  t  A #SubText
-  **/
-
-void
-subSharedTextFree(SubText *t)
-{
-  int i;
-
-  assert(t);
-
-  for(i = 0; i < t->nitems; i++)
-    {
-      SubTextItem *item = (SubTextItem *)t->items[i];
-
-      if(!(item->flags & (SUB_TEXT_BITMAP|SUB_TEXT_PIXMAP)) &&
-          item->data.string)
-        free(item->data.string);
-
-      free(t->items[i]);
-    }
-
-  free(t->items);
-  free(t);
-} /* }}} */
-
 /* Font */
 
  /** subSharedFontNew {{{
@@ -847,28 +485,20 @@ SubFont *
 subSharedFontNew(Display *disp,
   const char *name)
 {
-  int n = 0;
-  char *def = NULL, **missing = NULL, **names = NULL;
-  XFontStruct **xfonts = NULL;
   SubFont *f = NULL;
-
-  /* Create new font */
-  f = FONT(subSharedMemoryAlloc(1, sizeof(SubFont)));
 
   /* Load font */
 #ifdef HAVE_X11_XFT_XFT_H
   if(!strncmp(name, "xft:", 4))
     {
+      XftFont *xft = NULL;
+
       /* Load XFT font */
-      if(!(f->xft = XftFontOpenName(disp, DefaultScreen(disp), name + 4)))
+      if((xft = XftFontOpenName(disp, DefaultScreen(disp), name + 4)))
         {
-          subSharedLogWarn("Failed loading font `%s' - using default\n", name);
-
-          f->xft = XftFontOpenXlfd(disp, DefaultScreen(disp), name + 4);
-        }
-
-      if(f->xft)
-        {
+          /* Create new font */
+          f = FONT(subSharedMemoryAlloc(1, sizeof(SubFont)));
+          f->xft  = xft;
           f->draw = XftDrawCreate(disp, DefaultRootWindow(disp),
             DefaultVisual(disp, DefaultScreen(disp)),
             DefaultColormap(disp, DefaultScreen(disp)));
@@ -877,36 +507,31 @@ subSharedFontNew(Display *disp,
           f->height = f->xft->ascent + f->xft->descent + 2;
           f->y      = (f->height - 2 + f->xft->ascent) / 2;
         }
-
     }
   else
 #endif /* HAVE_X11_XFT_XFT_H */
     {
+      int n = 0;
+      char *def = NULL, **missing = NULL, **names = NULL;
+      XFontStruct **xfonts = NULL;
+      XFontSet xfs;
+
       /* Load font set */
-      if(!(f->xfs = XCreateFontSet(disp, name, &missing, &n, &def)))
+      if((xfs = XCreateFontSet(disp, name, &missing, &n, &def)))
         {
-          subSharedLogWarn("Failed loading font `%s' - using default\n", name);
+          /* Create new font */
+          f = FONT(subSharedMemoryAlloc(1, sizeof(SubFont)));
+          f->xfs = xfs;
 
-          if(!(f->xfs = XCreateFontSet(disp, DEFFONT, &missing, &n, &def)))
-            {
-              subSharedLogError("Failed loading fallback font `%s`\n",
-                DEFFONT);
+          XFontsOfFontSet(f->xfs, &xfonts, &names);
 
-              if(missing) XFreeStringList(missing); ///< Ignore this
-              free(f);
+          /* Font metrics */
+          f->height = xfonts[0]->max_bounds.ascent +
+            xfonts[0]->max_bounds.descent + 2;
+          f->y      = (f->height - 2 + xfonts[0]->max_bounds.ascent) / 2;
 
-              return NULL;
-            }
+          if(missing) XFreeStringList(missing); ///< Ignore this
         }
-
-      XFontsOfFontSet(f->xfs, &xfonts, &names);
-
-      /* Font metrics */
-      f->height = xfonts[0]->max_bounds.ascent +
-        xfonts[0]->max_bounds.descent + 2;
-      f->y      = (f->height - 2 + xfonts[0]->max_bounds.ascent) / 2;
-
-      if(missing) XFreeStringList(missing); ///< Ignore this
     }
 
   return f;
@@ -960,11 +585,11 @@ subSharedParseColor(Display *disp,
   if(!XParseColor(disp, DefaultColormap(disp, DefaultScreen(disp)),
       name, &xcolor))
     {
-      subSharedLogWarn("Failed loading color `%s'\n", name);
+      fprintf(stderr, "<CRITICAL> Failed loading color `%s'\n", name);
     }
   else if(!XAllocColor(disp, DefaultColormap(disp, DefaultScreen(disp)),
       &xcolor))
-    subSharedLogWarn("Failed allocating color `%s'\n", name);
+    fprintf(stderr, "<CRITICAL> Failed allocating color `%s'\n", name);
 
   return xcolor.pixel;
 } /* }}} */
@@ -986,7 +611,6 @@ subSharedParseKey(Display *disp,
   unsigned int *state,
   int *mouse)
 {
-  int i;
   KeySym sym = NoSymbol;
   char *tokens = NULL, *tok = NULL, *save = NULL;
 
@@ -996,33 +620,30 @@ subSharedParseKey(Display *disp,
 
   while(tok)
     {
-      /* Get key sym and modifier */
-      if(NoSymbol == ((sym = XStringToKeysym(tok))))
+      /* Eval keysyms */
+      switch((sym = XStringToKeysym(tok)))
         {
-          const char *buttons[] = { "B1", "B2", "B3", "B4", "B5" };
-
-          /* Check mouse buttons */
-          for(i = 0; i < LENGTH(buttons); i++)
-            if(!strncmp(tok, buttons[i], 2))
+          /* Unknown keys */
+          case NoSymbol:
+            if('B' == tok[0])
               {
-                sym = XK_Pointer_Button1 + i; ///< @todo Implementation independent?
+                int buttonid = 0;
 
-                break;
+                sscanf(tok, "B%d", &buttonid);
+
+                *mouse = True;
+                *code  = XK_Pointer_Button1 + buttonid; ///< FIXME: Implementation independent?
+                sym    = XK_Pointer_Button1;
               }
+            else
+              {
+                free(tokens);
 
-          /* Check if there's still no symbol */
-          if(NoSymbol == sym)
-            {
-              free(tokens);
+                return sym;
+              }
+            break;
 
-              return sym;
-            }
-        }
-
-      /* Modifier mappings */
-      switch(sym)
-        {
-          /* Keys */
+          /* Modifier keys */
           case XK_S: *state |= ShiftMask;   break;
           case XK_C: *state |= ControlMask; break;
           case XK_A: *state |= Mod1Mask;    break;
@@ -1030,15 +651,7 @@ subSharedParseKey(Display *disp,
           case XK_W: *state |= Mod4Mask;    break;
           case XK_G: *state |= Mod5Mask;    break;
 
-          /* Mouse */
-          case XK_Pointer_Button1:
-          case XK_Pointer_Button2:
-          case XK_Pointer_Button3:
-          case XK_Pointer_Button4:
-          case XK_Pointer_Button5:
-            *mouse = True;
-            *code  = sym;
-            break;
+          /* Normal keys */
           default:
             *mouse = False;
             *code  = XKeysymToKeycode(disp, sym);
@@ -1062,18 +675,78 @@ subSharedSpawn(char *cmd)
 {
   pid_t pid = fork();
 
+  /* Handle fork pids */
   switch(pid)
     {
       case 0:
         setsid();
         execlp("/bin/sh", "sh", "-c", cmd, NULL);
 
-        subSharedLogWarn("Failed executing command `%s'\n", cmd); ///< Never to be reached
+        /* Never to be reached */
+        fprintf(stderr, "<CRITICAL> Failed executing command `%s'\n", cmd);
         exit(1);
-      case -1: subSharedLogWarn("Failed forking `%s'\n", cmd);
+      case -1:
+        fprintf(stderr, "<CRITICAL> Failed forking command `%s'\n", cmd);
     }
 
   return pid;
+} /* }}} */
+
+ /** subSharedStringWidth {{{
+  * @brief Get width of the smallest enclosing box
+  * @param[in]     disp    Display
+  * @param[in]     text    The text
+  * @param[in]     len     Length of the string
+  * @param[inout]  left    Left bearing
+  * @param[inout]  right   Right bearing
+  * @param[in]     center  Center text
+  * @return Width of the box
+  **/
+
+int
+subSharedStringWidth(Display *disp,
+  SubFont *f,
+  const char *text,
+  int len,
+  int *left,
+  int *right,
+  int center)
+{
+  int width = 0, lbearing = 0, rbearing = 0;
+
+  assert(f);
+
+  /* Get text extents based on font */
+  if(text && 0 < len)
+    {
+#ifdef HAVE_X11_XFT_XFT_H
+      if(f->xft) ///< XFT
+        {
+          XGlyphInfo extents;
+
+          XftTextExtentsUtf8(disp, f->xft, (XftChar8 *)text, len, &extents);
+
+          width    = extents.xOff;
+          lbearing = extents.x;
+        }
+      else ///< XFS
+#endif /* HAVE_X11_XFT_XFT_H */
+        {
+          XRectangle overall_ink = { 0 }, overall_logical = { 0 };
+
+          XmbTextExtents(f->xfs, text, len,
+            &overall_ink, &overall_logical);
+
+          width    = overall_logical.width;
+          lbearing = overall_logical.x;
+        }
+
+      /* Get left and right spacing */
+      if(left)  *left  = lbearing;
+      if(right) *right = rbearing;
+    }
+
+  return center ? width - abs(lbearing - rbearing) : width;
 } /* }}} */
 
 #ifndef SUBTLE
@@ -1101,7 +774,7 @@ subSharedMessage(Display *disp,
   XEvent ev;
   long mask = SubstructureRedirectMask|SubstructureNotifyMask;
 
-  assert(win);
+  assert(disp && win);
 
   /* Assemble event */
   ev.xclient.type         = ClientMessage;
@@ -1118,9 +791,7 @@ subSharedMessage(Display *disp,
   ev.xclient.data.l[3] = data.l[3];
   ev.xclient.data.l[4] = data.l[4];
 
-  if(!disp || !((status = XSendEvent(disp, DefaultRootWindow(disp),
-      False, mask, &ev))))
-    subSharedLogWarn("Failed sending client message `%s'\n", type);
+  status = XSendEvent(disp, DefaultRootWindow(disp), False, mask, &ev);
 
   if(True == xsync) XSync(disp, False);
 

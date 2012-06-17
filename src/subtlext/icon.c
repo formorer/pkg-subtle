@@ -2,8 +2,8 @@
   * @package subtlext
   *
   * @file Gravity functions
-  * @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtlext/icon.c,v 2923 2011/07/06 14:20:27 unexist $
+  * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtlext/icon.c,v 3168 2012/01/03 16:02:50 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -51,7 +51,7 @@ IconSweep(SubtlextIcon *i)
   if(i)
     {
       /* Check if we can kill the pixmap here */
-      if(!(i->flags & ICON_FOREIGN))
+      if(!(i->flags & ICON_FOREIGN) && i->pixmap)
         XFreePixmap(display, i->pixmap);
 
       if(0 != i->gc) XFreeGC(display, i->gc);
@@ -82,7 +82,7 @@ IconEqual(VALUE self,
   return ret ? Qtrue : Qfalse;
 } /* }}} */
 
-/* Exported */
+/* Class */
 
 /* subIconAlloc {{{ */
 /*
@@ -171,8 +171,9 @@ subIconInit(int argc,
                    getenv("HOME"), RSTRING_PTR(data[0]));
                 }
 
+              /* Check if icon exists */
               if(-1 == access(buf, R_OK))
-                rb_raise(rb_eStandardError, "Icon not found `%s'",
+                rb_raise(rb_eStandardError, "Invalid icon `%s'",
                   RSTRING_PTR(data[0]));
             }
 
@@ -204,7 +205,7 @@ subIconInit(int argc,
               else
 #endif /* HAVE_X11_XPM_H */
                 {
-                  rb_raise(rb_eStandardError, "Malormed icon");
+                  rb_raise(rb_eStandardError, "Invalid icon data");
 
                   return Qnil;
                }
@@ -249,9 +250,6 @@ subIconInit(int argc,
       rb_iv_set(i->instance, "@pixmap", LONG2NUM(i->pixmap));
 
       XSync(display, False); ///< Sync all changes
-
-      subSharedLogDebugSubtlext("new=icon, width=%03d, height=%03d\n",
-        i->width, i->height);
     }
 
   return Qnil;
@@ -259,15 +257,15 @@ subIconInit(int argc,
 
 /* subIconDrawPoint {{{ */
 /*
- * call-seq: draw_point(x, y, fg, bg) -> nil
+ * call-seq: draw_point(x, y, fg, bg) -> Subtlext::Icon
  *
  * Draw a pixel on the icon at given coordinates in given colors.
  *
  *  icon.draw_point(1, 1)
- *  => nil
+ *  => #<Subtlext::Icon:xxx>
  *
  *  icon.draw_point(1, 1, "#ff0000", "#000000")
- *  => nil
+ *  => #<Subtlext::Icon:xxx>
  */
 
 VALUE
@@ -315,20 +313,20 @@ subIconDrawPoint(int argc,
     }
   else rb_raise(rb_eArgError, "Unexpected value-types");
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* subIconDrawLine {{{ */
 /*
- * call-seq: draw_line(x1, y1, x2, y2, fg, bg) -> nil
+ * call-seq: draw_line(x1, y1, x2, y2, fg, bg) -> Subtlext::Icon
  *
  * Draw a line on the Icon starting at x1/y1 to x2/y2 in given colors.
  *
  *  icon.draw_line(1, 1, 10, 1)
- *  => nil
+ *  => #<Subtlext::Icon:xxx>
  *
  *  icon.draw_line(1, 1, 10, 1, "#ff0000", "#000000")
- *  => nil
+ *  => #<Subtlext::Icon:xxx>
  */
 
 VALUE
@@ -378,21 +376,21 @@ subIconDrawLine(int argc,
     }
   else rb_raise(rb_eArgError, "Unexpected value-types");
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* subIconDrawRect {{{ */
 /*
- * call-seq: draw_rect(x, y, width, height, fill, fg, bg) -> nil
+ * call-seq: draw_rect(x, y, width, height, fill, fg, bg) -> Subtlext::Icon
  *
  * Draw a rect on the Icon starting at x/y with given width, height
  * and colors.
  *
  *  icon.draw_rect(1, 1, 10, 10, false)
- *  => nil
+ *  => #<Subtlext::Icon:xxx>
  *
  *  icon.draw_rect(1, 1, 10, 10, false, "#ff0000", "#000000")
- *  => nil
+ *  => #<Subtlext::Icon:xxx>
  */
 
 VALUE
@@ -448,17 +446,17 @@ subIconDrawRect(int argc,
     }
   else rb_raise(rb_eArgError, "Unexpected value-types");
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* subIconCopyArea {{{ */
 /*
- * call-seq: copy_area(icon2, src_x, src_y, width, height, dest_x, dest_y) -> nil
+ * call-seq: copy_area(icon2, src_x, src_y, width, height, dest_x, dest_y) -> Subtlext::Icon
  *
  * Copy area of given width/height from one Icon to another.
  *
  *  icon.copy_area(icon, 0, 0, 10, 10, 0, 0)
- *  => nil
+ *  => #<Subtlext::Icon:xxx>
  */
 
 VALUE
@@ -531,21 +529,21 @@ subIconCopyArea(int argc,
     }
   else rb_raise(rb_eArgError, "Unexpected value-types");
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* subIconClear {{{ */
 /*
- * call-seq: clear         -> nil
- *           clear(fg, bg) -> nil
+ * call-seq: clear         -> Subtlext::Icon
+ *           clear(fg, bg) -> Subtlext::Icon
  *
  * Clear the icon and optionally set a fore-/background color.
  *
  *  icon.clear
- *  => nil
+ *  => #<Subtlext::Icon:xxx>
  *
  *  icon.clear("#ff0000", "#000000")
- *  => nil
+ *  => #<Subtlext::Icon:xxx>
  */
 
 VALUE
@@ -586,7 +584,7 @@ subIconClear(int argc,
       XFlush(display);
     }
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* subIconAskBitmap {{{ */

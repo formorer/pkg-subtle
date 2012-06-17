@@ -3,8 +3,8 @@
 # @package test
 #
 # @file Start Xvfb server
-# @author Christoph Kappel <unexist@dorfelite.net>
-# @version $Id: test/xserver.rb,v 2736 2011/03/23 16:04:13 unexist $
+# @author Christoph Kappel <unexist@subforge.org>
+# @version $Id: test/xserver.rb,v 3074 2011/10/07 19:26:51 unexist $
 #
 # This program can be distributed under the terms of the GNU GPLv2.
 # See the file COPYING for details.

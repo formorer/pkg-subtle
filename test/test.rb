@@ -3,8 +3,8 @@
 # @package test
 #
 # @file Run riot unit tests
-# @author Christoph Kappel <unexist@dorfelite.net>
-# @version $Id: test/test.rb,v 2843 2011/05/24 18:11:55 unexist $
+# @author Christoph Kappel <unexist@subforge.org>
+# @version $Id: test/test.rb,v 3131 2011/11/15 20:43:06 unexist $
 #
 # This program can be distributed under the terms of the GNU GPLv2.
 # See the file COPYING for details.
@@ -32,7 +32,7 @@ end
 
 def fork_and_forget(cmd)
   pid = Process.fork
-  if(pid.nil?)
+  if pid.nil?
     exec(cmd)
   else
     Process.detach(pid)
@@ -40,7 +40,7 @@ def fork_and_forget(cmd)
 end
 
 # Find xterm
-if((xterm = find_executable0("xterm")).nil?)
+if (xterm = find_executable0("xterm")).nil?
   raise "xterm not found in path"
 end
 

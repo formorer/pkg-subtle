@@ -2,8 +2,8 @@
 # @package test
 #
 # @file Test Subtlext::Color functions
-# @author Christoph Kappel <unexist@dorfelite.net>
-# @version $Id: test/contexts/color.rb,v 2917 2011/07/05 18:11:41 unexist $
+# @author Christoph Kappel <unexist@subforge.org>
+# @version $Id: test/contexts/color.rb,v 3169 2012/01/03 20:43:30 unexist $
 #
 # This program can be distributed under the terms of the GNU GPLv2.
 # See the file COPYING for details.
@@ -15,8 +15,8 @@ context 'Color' do
   end # }}}
 
   asserts 'Init types' do # {{{
-    c1 = Subtlext::Color.new topic
-    c2 = Subtlext::Color.new [ 255, 0, 0 ]
+    c1 = Subtlext::Color.new(topic)
+    c2 = Subtlext::Color.new([ 255, 0, 0 ])
     c3 = Subtlext::Color.new({ red: 255, green: 0, blue: 0 })
 
     topic == c1 and c1 == c2 and c1 == c3
@@ -35,11 +35,15 @@ context 'Color' do
   end # }}}
 
   asserts 'Equal and compare' do # {{{
-    topic.eql? Subtlext::Color.new('#ff0000') and topic == topic
+    topic.eql?(Subtlext::Color.new('#ff0000')) and topic == topic
+  end # }}}
+
+  asserts 'Hash and unique' do # {{{
+    1 == [ topic, topic ].uniq.size
   end # }}}
 
   asserts 'Convert to string' do # {{{
-    topic.to_str.match /<>#[0-9]+<>/
+    topic.to_str.match(/<>#[0-9]+<>/)
   end # }}}
 end
 

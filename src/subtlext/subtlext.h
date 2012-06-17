@@ -3,8 +3,8 @@
   * @package subtlext
   *
   * @file Header file
-  * @copyright Copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtlext/subtlext.h,v 3005 2011/08/17 15:23:13 unexist $
+  * @copyright Copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtlext/subtlext.h,v 3216 2012/06/15 17:18:12 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -51,9 +51,10 @@ extern int debug;
 /* Singleton */
 VALUE subClientSingSelect(VALUE self);                            ///< Select client
 VALUE subClientSingFind(VALUE self, VALUE value);                 ///< Find client
+VALUE subClientSingFirst(VALUE self, VALUE value);                ///< Find first client
 VALUE subClientSingCurrent(VALUE self);                           ///< Get current client
 VALUE subClientSingVisible(VALUE self);                           ///< Get all visible clients
-VALUE subClientSingAll(VALUE self);                               ///< Get all clients
+VALUE subClientSingList(VALUE self);                              ///< Get all clients
 VALUE subClientSingRecent(VALUE self);                            ///< Get recent active clients
 
 /* Class */
@@ -121,16 +122,18 @@ VALUE subGeometryEqualTyped(VALUE self, VALUE other);             ///< Whether o
 /* gravity.c {{{ */
 /* Singleton */
 VALUE subGravitySingFind(VALUE self, VALUE value);                ///< Find gravity
-VALUE subGravitySingAll(VALUE self);                              ///< Get all gravities
+VALUE subGravitySingFirst(VALUE self, VALUE value);               ///< Find first gravity
+VALUE subGravitySingList(VALUE self);                             ///< Get all gravities
 
 /* Class */
 VALUE subGravityInstantiate(char *name);                          ///< Instantiate gravity
 VALUE subGravityInit(int argc, VALUE *argv, VALUE self);          ///< Create new gravity
-VALUE subGravityUpdate(VALUE self);                               ///< Update gravity
+VALUE subGravitySave(VALUE self);                                 ///< Save gravity
 VALUE subGravityClients(VALUE self);                              ///< List clients with gravity
-VALUE subGravityGeometryReader(VALUE self);                       ///< Get geometry gravity
-VALUE subGravityGeometryWriter(VALUE self, VALUE value);          ///< Set geometry gravity
 VALUE subGravityGeometryFor(VALUE self, VALUE value);             ///< Get geometry gravity for screen
+VALUE subGravityGeometryReader(VALUE self);                       ///< Get geometry gravity
+VALUE subGravityGeometryWriter(int argc, VALUE *argv, VALUE self);///< Get geometry gravity
+VALUE subGravityTilingWriter(VALUE self, VALUE value);            ///< Set gravity tiling
 VALUE subGravityToString(VALUE self);                             ///< Gravity to string
 VALUE subGravityToSym(VALUE self);                                ///< Gravity to symbol
 VALUE subGravityKill(VALUE self);                                 ///< Kill gravity
@@ -155,7 +158,7 @@ VALUE subIconEqualTyped(VALUE self, VALUE other);                 ///< Whether o
 /* screen.c {{{ */
 /* Singleton */
 VALUE subScreenSingFind(VALUE self, VALUE id);                    ///< Find screen
-VALUE subScreenSingAll(VALUE self);                               ///< Get all screens
+VALUE subScreenSingList(VALUE self);                              ///< Get all screens
 VALUE subScreenSingCurrent(VALUE self);                           ///< Get current screen
 
 /* Class */
@@ -172,14 +175,13 @@ VALUE subScreenToString(VALUE self);                              ///< Screen to
 /* sublet.c {{{ */
 /* Singleton */
 VALUE subSubletSingFind(VALUE self, VALUE value);                 ///< Find sublet
-VALUE subSubletSingAll(VALUE self);                               ///< Get all sublets
+VALUE subSubletSingFirst(VALUE self, VALUE value);                ///< Find first sublet
+VALUE subSubletSingList(VALUE self);                              ///< Get all sublets
 
 /* Class */
-VALUE subSubletInstantiate(char *name);                           ///< Instantiate sublet
 VALUE subSubletInit(VALUE self, VALUE name);                      ///< Create sublet
 VALUE subSubletUpdate(VALUE self);                                ///< Update sublet
-VALUE subSubletDataReader(VALUE self);                            ///< Get sublet data
-VALUE subSubletDataWriter(VALUE self, VALUE value);               ///< Set sublet data
+VALUE subSubletSend(VALUE self, VALUE value);                     ///< Send data to sublet
 VALUE subSubletVisibilityShow(VALUE self);                        ///< Show sublet
 VALUE subSubletVisibilityHide(VALUE self);                        ///< Hide sublet
 VALUE subSubletGeometryReader(VALUE self);                        ///< Get sublet geometry
@@ -208,26 +210,30 @@ void subSubtlextBacktrace(void);                                  ///< Print rub
 VALUE subSubtlextConcat(VALUE str1, VALUE str2);                  ///< Concat strings
 VALUE subSubtlextParse(VALUE value, char *buf,
   int len, int *flags);                                           ///< Parse arguments
-VALUE subSubtlextOneOrMany(VALUE obj, VALUE recent);              ///< Return one or many
+VALUE subSubtlextOneOrMany(VALUE value, VALUE prev);              ///< Return one or many
+VALUE subSubtlextManyToOne(VALUE value);                          ///< Return one from many
 Window *subSubtlextWindowList(char *prop_name, int *size);        ///< Get window list
-int subSubtlextWindowMatch(Window win, regex_t *preg,
-  const char *source, char **name, int flags);                    ///< Match window
 int subSubtlextFindString(char *prop_name, char *source,
   char **name, int flags);                                        ///< Find string id
 VALUE subSubtlextFindObjects(char *prop_name, char *class_name,
-  char *source, int flags);                                       ///< Find objects
+  char *source, int flags, int first);                            ///< Find objects
+VALUE subSubtlextFindWindows(char *prop_name, char *class_name,
+  char *source, int flags, int first);                            ///< Find objects
+VALUE subSubtlextFindObjectsGeometry(char *prop_name,
+  char *class_name, char *source, int flags, int first);          ///< Find objects with geometries
 /* }}} */
 
 /* tag.c {{{ */
 /* Singleton */
 VALUE subTagSingFind(VALUE self, VALUE value);                    ///< Find tag
+VALUE subTagSingFirst(VALUE self, VALUE value);                   ///< Find first tag
 VALUE subTagSingVisible(VALUE self);                              ///< Get all visible tags
-VALUE subTagSingAll(VALUE self);                                  ///< Get all tags
+VALUE subTagSingList(VALUE self);                                 ///< Get all tags
 
 /* Class */
 VALUE subTagInstantiate(char *name);                              ///< Instantiate tag
 VALUE subTagInit(VALUE self, VALUE name);                         ///< Create tag
-VALUE subTagUpdate(VALUE self);                                   ///< Update tag
+VALUE subTagSave(VALUE self);                                     ///< Save tag
 VALUE subTagClients(VALUE self);                                  ///< Get clients with tag
 VALUE subTagViews(VALUE self);                                    ///< Get views with tag
 VALUE subTagToString(VALUE self);                                 ///< Tag to string
@@ -237,7 +243,8 @@ VALUE subTagKill(VALUE self);                                     ///< Kill tag
 /* tray.c {{{ */
 /* Singleton */
 VALUE subTraySingFind(VALUE self, VALUE name);                    ///< Find tray
-VALUE subTraySingAll(VALUE self);                                 ///< Get all trays
+VALUE subTraySingFirst(VALUE self, VALUE name);                   ///< Find first tray
+VALUE subTraySingList(VALUE self);                                ///< Get all trays
 
 /* Class */
 VALUE subTrayInstantiate(Window win);                             ///< Instantiate tray
@@ -250,14 +257,16 @@ VALUE subTrayKill(VALUE self);                                    ///< Kill tray
 /* view.c {{{ */
 /* Singleton */
 VALUE subViewSingFind(VALUE self, VALUE name);                    ///< Find view
+VALUE subViewSingFirst(VALUE self, VALUE name);                   ///< Find first view
 VALUE subViewSingCurrent(VALUE self);                             ///< Get current view
 VALUE subViewSingVisible(VALUE self);                             ///< Get all visible views
-VALUE subViewSingAll(VALUE self);                                 ///< Get all views
+VALUE subViewSingList(VALUE self);                                ///< Get all views
 
 /* Class */
 VALUE subViewInstantiate(char *name);                             ///< Instantiate view
 VALUE subViewInit(VALUE self, VALUE name);                        ///< Create view
 VALUE subViewUpdate(VALUE self);                                  ///< Update view
+VALUE subViewSave(VALUE self);                                    ///< Save view
 VALUE subViewClients(VALUE self);                                 ///< Get clients of view
 VALUE subViewJump(VALUE self);                                    ///< Jump to view
 VALUE subViewSelectNext(VALUE self);                              ///< Select next view
@@ -289,8 +298,6 @@ VALUE subWindowBorderColorWriter(VALUE self, VALUE value);        ///< Set borde
 VALUE subWindowBorderSizeWriter(VALUE self, VALUE value);         ///< Set border size
 VALUE subWindowGeometryReader(VALUE self);                        ///< Get geometry
 VALUE subWindowGeometryWriter(VALUE self, VALUE value);           ///< Set geometry
-VALUE subWindowWrite(VALUE self, VALUE x, VALUE y, VALUE text);   ///< Write text
-VALUE subWindowRead(int argc, VALUE *argv, VALUE self);           ///< Read text
 VALUE subWindowOn(int argc, VALUE *argv, VALUE self);             ///< Add event handler
 VALUE subWindowDrawPoint(int argc, VALUE *argv, VALUE self);      ///< Draw a point
 VALUE subWindowDrawLine(int argc, VALUE *argv, VALUE self);       ///< Draw a line
@@ -299,8 +306,6 @@ VALUE subWindowDrawText(int arcg, VALUE *argv, VALUE self);       ///< Draw text
 VALUE subWindowDrawIcon(int arcg, VALUE *argv, VALUE self);       ///< Draw icon
 VALUE subWindowClear(int argc, VALUE *argv, VALUE self);          ///< Clear area or window
 VALUE subWindowRedraw(VALUE self);                                ///< Redraw window
-VALUE subWindowCompletion(VALUE self);                            ///< Add completion proc
-VALUE subWindowInput(VALUE self);                                 ///< Add input proc
 VALUE subWindowRaise(VALUE self);                                 ///< Raise window
 VALUE subWindowLower(VALUE self);                                 ///< Lower window
 VALUE subWindowShow(VALUE self);                                  ///< Show window

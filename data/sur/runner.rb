@@ -1,9 +1,10 @@
+# -*- encoding: utf-8 -*-
 #
 # @package sur
 #
 # @file Runner functions
-# @author Christoph Kappel <unexist@dorfelite.net>
-# @version $Id: data/sur/runner.rb,v 2848 2011/05/28 11:42:07 unexist $
+# @author Christoph Kappel <unexist@subforge.org>
+# @version $Id: data/sur/runner.rb,v 3182 2012/02/04 16:39:33 unexist $
 #
 # This program can be distributed under the terms of the GNU GPLv2.
 # See the file COPYING for details.
@@ -85,49 +86,49 @@ module Subtle # {{{
 
           args = no_opt
         rescue
-          raise "Couldn't find required arguments"
+          raise "Cannot find required arguments"
         end
 
         # Run
         cmd  = args.shift
         case cmd
           when "annotate"
-            usage(cmd) if(args.empty?)
+            usage(cmd) if args.empty?
 
             Subtle::Sur::Client.new.annotate(args.first, @version)
           when "build"
-            usage(cmd) if(args.empty?)
+            usage(cmd) if args.empty?
 
             Subtle::Sur::Client.new.build(args.first)
           when "config"
-            usage(cmd) if(args.empty?)
+            usage(cmd) if args.empty?
 
             Subtle::Sur::Client.new.config(args.first, @use_color)
           when "fetch"
-            usage(cmd) if(args.empty?)
+            usage(cmd) if args.empty?
 
             Subtle::Sur::Client.new.fetch(args, @version, @use_tags)
           when "grabs"
-            usage(cmd) if(args.empty?)
+            usage(cmd) if args.empty?
 
             Subtle::Sur::Client.new.grabs(args.first, @use_color)
           when "help" then usage(nil)
           when "info"
-            usage(cmd) if(args.empty?)
+            usage(cmd) if args.empty?
 
             Sur::Client.new.info(args, @use_color)
           when "install"
-            usage(cmd) if(args.empty?)
+            usage(cmd) if args.empty?
 
             Sur::Client.new.install(args, @version, @use_tags, @reload)
           when "list"
             Subtle::Sur::Client.new.list(@repo, @use_color)
           when "notes"
-            usage(cmd) if(args.empty?)
+            usage(cmd) if args.empty?
 
             Subtle::Sur::Client.new.notes(args.first)
           when "query"
-            usage(cmd) if(args.empty?)
+            usage(cmd) if args.empty?
 
             Subtle::Sur::Client.new.query(args.first, @repo,
               @version, @use_regex, @use_tags, @use_color
@@ -139,31 +140,34 @@ module Subtle # {{{
 
             Sur::Server.new(@port).run
           when "submit"
-            usage(cmd) if(args.empty?)
+            usage(cmd) if args.empty?
 
             Subtle::Sur::Client.new.submit(args.first)
           when "template"
-            usage(cmd) if(args.empty?)
+            usage(cmd) if args.empty?
 
             Subtle::Sur::Specification.template(args.first)
           when "test"
-            usage(cmd) if(args.empty?)
+            usage(cmd) if args.empty?
 
             require "subtle/sur/test"
 
             Subtle::Sur::Test.run(@config, args)
           when "uninstall"
-            usage(cmd) if(args.empty?)
+            usage(cmd) if args.empty?
 
             Subtle::Sur::Client.new.uninstall(args,
               @version, @use_tags, @reload)
+          when "unpack"
+            Subtle::Sur::Client.new.unpack(args,
+              @version, @use_tags)
           when "update"
             Subtle::Sur::Client.new.update(@repo)
           when "upgrade"
             Subtle::Sur::Client.new.upgrade(@use_color, @assume, @reload)
           when "version" then version
           when "yank"
-            usage(cmd) if(args.empty?)
+            usage(cmd) if args.empty?
 
             Subtle::Sur::Client.new.update(args.first, @version)
           else usage(nil)
@@ -229,14 +233,14 @@ module Subtle # {{{
                  "sur query -r clock -v 0.3\n"
           when "server"
             puts "Usage: sur server [OPTIONS]\n\n" \
-                 "Serve sublets on localhost ann optionally on a given port\n\n" \
+                 "Serve sublets on localhost and optionally on a given port\n\n" \
                  "Options:\n" \
                  "  -p, --port PORT           Select a specific port\n" \
                  "  -h, --help                Show this help and exit\n\n" \
                  "Examples:\n" \
                  "sur server -p 3000\n"
           when "test"
-            puts "Usage: sur uninstall NAME [OPTIONS]\n\n" \
+            puts "Usage: sur test NAME [OPTIONS]\n\n" \
                  "Test given sublets for syntax and functionality\n\n" \
                  "Options:\n" \
                  "  -C, --config VALUE        Add config value (can be used multiple times)\n" \
@@ -244,6 +248,16 @@ module Subtle # {{{
                  "Examples:\n" \
                  "sur test -C user=name -C pass=pass sublet.rb\n" \
                  "sur test sublet.rb\n"
+          when "unpack"
+            puts "Usage: sur unpack NAME [OPTIONS]\n\n" \
+                 "Unpack sublet to current path\n\n" \
+                 "Options:\n" \
+                 "  -t, --tags                Include tags in search\n" \
+                 "  -v, --version VERSION     Search for a specific version\n" \
+                 "  -h, --help                Show this help and exit\n\n" \
+                 "Examples:\n" \
+                 "sur unpack clock\n" \
+                 "sur unpack clock -v 0.3\n"
           when "uninstall"
             puts "Usage: sur uninstall NAME [OPTIONS]\n\n" \
                  "Uninstall a sublet by given name and optionally by given version\n\n" \
@@ -293,7 +307,9 @@ module Subtle # {{{
                  "  server [-p PORT|-h]                     Serve sublets (default: http://localhost:4567)\n" \
                  "  submit FILE                             Submit a sublet to SUR\n" \
                  "  template FILE                           Create a new sublet template in current dir\n" \
+                 "  test NAME [-C VALUE|-h]                 Test sublets for syntax and functionality\n" \
                  "  uninstall NAME [-R|-t|-v VERSION|-h]    Uninstall a sublet\n" \
+                 "  unpack NAME [-t|-v VERSION|-h]          Unpack a sublet in current directory\n" \
                  "  update [-l|-r|-h]                       Update local/remote sublet cache\n" \
                  "  upgrade [-R|-y|-h]                      Upgrade all installed sublets\n" \
                  "  version                                 Show version info and exit\n"
@@ -306,7 +322,7 @@ module Subtle # {{{
       end # }}}
 
       def version # {{{
-        puts "Sur #{VERSION} - Copyright (c) 2009-2011 Christoph Kappel\n" \
+        puts "Sur #{VERSION} - Copyright (c) 2009-2012 Christoph Kappel\n" \
              "Released under the GNU General Public License\n"
       end # }}}
     end # }}}

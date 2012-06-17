@@ -2,8 +2,8 @@
   * @package subtle
   *
   * @file subtle ruby extension
-  * @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtlext/screen.c,v 2856 2011/05/31 15:26:59 unexist $
+  * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtlext/screen.c,v 3168 2012/01/03 16:02:50 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -145,21 +145,21 @@ subScreenSingFind(VALUE self,
   return screen;
 } /* }}} */
 
-/* subScreenSingAll {{{ */
+/* subScreenSingList {{{ */
 /*
- * call-seq: all -> Array
+ * call-seq: list -> Array
  *
  * Get Array of all Screen
  *
- *  Subtlext::Screen.all
+ *  Subtlext::Screen.list
  *  => [#<Subtlext::Screen:xxx>, #<Subtlext::Screen:xxx>]
  *
- *  Subtlext::Screen.all
+ *  Subtlext::Screen.list
  *  => []
  */
 
 VALUE
-subScreenSingAll(VALUE self)
+subScreenSingList(VALUE self)
 {
   return ScreenList();
 } /* }}} */
@@ -230,7 +230,7 @@ subScreenSingCurrent(VALUE self)
   return screen;
 } /* }}} */
 
-/* Class */
+/* Helper */
 
 /* subScreenInstantiate {{{ */
 VALUE
@@ -244,6 +244,8 @@ subScreenInstantiate(int id)
 
   return screen;
 } /* }}} */
+
+/* Class */
 
 /* subScreenInit {{{ */
 /*
@@ -274,12 +276,12 @@ subScreenInit(VALUE self,
 
 /* subScreenUpdate {{{ */
 /*
- * call-seq: update -> nil
+ * call-seq: update -> Subtlext::Screen
  *
  * Update Screen properties
  *
  *  screen.update
- *  => nil
+ *  => #<Subtlext::Screen:xxx>
  */
 
 VALUE
@@ -290,8 +292,7 @@ subScreenUpdate(VALUE self)
   /* Check ruby object */
   GET_ATTR(self, "@id", id);
 
-  screens = ScreenList();
-
+  /* Find screen */
   if((screens = ScreenList()) &&
       RTEST(screen = rb_ary_entry(screens, FIX2INT(id))))
     {
@@ -299,19 +300,20 @@ subScreenUpdate(VALUE self)
 
       rb_iv_set(self, "@geometry", geometry);
     }
-  else rb_raise(rb_eStandardError, "Failed finding screen");
+  else rb_raise(rb_eStandardError, "Invalid screen id `%d'",
+    (int)FIX2INT(id));
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* subScreenJump {{{ */
 /*
- * call-seq: screen -> nil
+ * call-seq: screen -> Subtlext::Screen
  *
  * Jump to this Screen
  *
  *  screen.jump
- *  => nil
+ *  => #<Subtlext::Screen:xxx>
  */
 
 VALUE
@@ -332,7 +334,7 @@ subScreenJump(VALUE self)
   subSharedMessage(display, DefaultRootWindow(display),
     "SUBTLE_SCREEN_JUMP", data, 32, True);
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* subScreenViewReader {{{ */
@@ -386,9 +388,9 @@ subScreenViewReader(VALUE self)
 
 /* subScreenViewWriter {{{ */
 /*
- * call-seq: view=(fixnum) -> nil
- *           view=(symbol) -> nil
- *           view=(object) -> nil
+ * call-seq: view=(fixnum) -> Fixnum
+ *           view=(symbol) -> Symbol
+ *           view=(object) -> Subtlext::View
  *
  * Set active view for screen
  *
@@ -414,7 +416,7 @@ subScreenViewWriter(VALUE self,
   /* Check instance type */
   if(rb_obj_is_instance_of(value, rb_const_get(mod, rb_intern("View"))))
     view = value;
-  else view = subViewSingFind(Qnil, value);
+  else view = subViewSingFirst(Qnil, value);
 
   GET_ATTR(view, "@id", vid);
 
@@ -426,7 +428,7 @@ subScreenViewWriter(VALUE self,
   subSharedMessage(display, DefaultRootWindow(display),
     "_NET_CURRENT_DESKTOP", data, 32, True);
 
-  return Qnil;
+  return value;
 } /* }}} */
 
 /* subScreenAskCurrent {{{ */

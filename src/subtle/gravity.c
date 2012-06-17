@@ -3,8 +3,8 @@
   * @package subtle
   *
   * @file Gravity functions
-  * @copyright (c) 2005-2009 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtle/gravity.c,v 2861 2011/06/08 19:42:41 unexist $
+  * @copyright (c) 2005-2009 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtle/gravity.c,v 3213 2012/05/31 13:42:04 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -42,7 +42,7 @@ subGravityNew(const char *name,
   g->geom.width  = MINMAX(geom->width,  1, 100);
   g->geom.height = MINMAX(geom->height, 1, 100);
 
-  subSharedLogDebugSubtle("new=gravity, name=%s, quark=%d, x=%d, y=%d,"
+  subSubtleLogDebugSubtle("New: name=%s, quark=%d, x=%d, y=%d,"
     "width=%d, height=%d\n",
     name, g->quark, geom->x, geom->y, geom->width, geom->height);
 
@@ -82,7 +82,7 @@ subGravityKill(SubGravity *g)
 
   free(g);
 
-  subSharedLogDebugSubtle("kill=gravity\n");
+  subSubtleLogDebugSubtle("Kill\n");
 } /* }}} */
 
 /* All */
@@ -138,6 +138,7 @@ subGravityPublish(void)
 
   assert(0 < subtle->gravities->ndata);
 
+  /* Alloc space */
   gravities  = (char **)subSharedMemoryAlloc(subtle->gravities->ndata,
     sizeof(char *));
 
@@ -164,10 +165,11 @@ subGravityPublish(void)
   for(i = 0; i < subtle->gravities->ndata; i++)
     free(gravities[i]);
 
-  subSharedLogDebugSubtle("publish=gravities, n=%d\n",
-    subtle->gravities->ndata);
-
   XSync(subtle->dpy, False); ///< Sync all changes
 
   free(gravities);
+
+  subSubtleLogDebugSubtle("Publish: gravities=%d\n", subtle->gravities->ndata);
 } /* }}} */
+
+// vim:ts=2:bs=2:sw=2:et:fdm=marker

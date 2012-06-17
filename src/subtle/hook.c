@@ -3,8 +3,8 @@
   * @package subtle
   *
   * @file Hook functions
-  * @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtle/hook.c,v 2736 2011/03/23 16:04:13 unexist $
+  * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtle/hook.c,v 3168 2012/01/03 16:02:50 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -32,7 +32,7 @@ subHookNew(int type,
   h->flags = (SUB_TYPE_HOOK|type);
   h->proc  = proc;
 
-  subSharedLogDebugSubtle("new=hook, type=%d, proc=%ld\n", type, proc);
+  subSubtleLogDebugSubtle("new=hook, type=%d, proc=%ld\n", type, proc);
 
   return h;
 } /* }}} */
@@ -58,7 +58,7 @@ subHookCall(int type,
         {
           subRubyCall(SUB_CALL_HOOKS, h->proc, data);
 
-          subSharedLogDebug("call=hook, type=%d, proc=%ld, data=%p\n",
+          subSubtleLogDebug("call=hook, type=%d, proc=%ld, data=%p\n",
             type, h->proc, data);
         }
     }
@@ -76,7 +76,7 @@ subHookKill(SubHook *h)
 
   free(h);
 
-  subSharedLogDebugSubtle("kill=hook\n");
+  subSubtleLogDebugSubtle("kill=hook\n");
 } /* }}} */
 
 // vim:ts=2:bs=2:sw=2:et:fdm=marker

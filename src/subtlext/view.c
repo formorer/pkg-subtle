@@ -2,8 +2,8 @@
   * @package subtle
   *
   * @file subtle ruby extension
-  * @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtlext/view.c,v 2986 2011/08/07 14:12:30 unexist $
+  * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtlext/view.c,v 3216 2012/06/15 17:18:12 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -52,40 +52,10 @@ ViewSelect(VALUE self,
   return ret;
 } /* }}} */
 
-/* Singleton */
-
-/* subViewSingFind {{{ */
-/*
- * call-seq: find(value) -> Subtlext::View, Array or nil
- *           [value]     -> Subtlext::View, Array or nil
- *
- * Find View by a given <i>value</i> which can be of following type:
- *
- * [Fixnum] Array index of the <code>_NET_DESKTOP_NAMES</code> property list.
- * [String] Regexp match against name of Views, returns a View on single
- *          match or an Array on multiple matches.
- * [Symbol] Either <i>:current</i> for current View, <i>:all</i> for an
- *          array of all Views or any string for an <b>exact</b> match.
- *
- *  Subtlext::View.find(1)
- *  => #<Subtlext::View:xxx>
- *
- *  Subtlext::View.find("subtle")
- *  => #<Subtlext::View:xxx>
- *
- *  Subtlext::View[".*"]
- *  => [#<Subtlext::View:xxx>, #<Subtlext::View:xxx>]
- *
- *  Subtlext::View["subtle"]
- *  => nil
- *
- *  Subtlext::View[:terms]
- *  => #<Subtlext::View:xxx>
- */
-
-VALUE
-subViewSingFind(VALUE self,
-  VALUE value)
+/* ViewFind {{{ */
+static VALUE
+ViewFind(VALUE value,
+  int first)
 {
   int flags = 0;
   VALUE parsed = Qnil;
@@ -101,7 +71,7 @@ subViewSingFind(VALUE self,
         if(CHAR2SYM("visible") == parsed)
           return subViewSingVisible(Qnil);
         else if(CHAR2SYM("all") == parsed)
-          return subViewSingAll(Qnil);
+          return subViewSingList(Qnil);
         else if(CHAR2SYM("current") == parsed)
           return subViewSingCurrent(Qnil);
         break;
@@ -110,7 +80,72 @@ subViewSingFind(VALUE self,
           return parsed;
     }
 
-  return subSubtlextFindObjects("_NET_DESKTOP_NAMES", "View", buf, flags);
+  return subSubtlextFindObjects("_NET_DESKTOP_NAMES", "View",
+    buf, flags, first);
+} /* }}} */
+
+/* Singleton */
+
+/* subViewSingFind {{{ */
+/*
+ * call-seq: find(value) -> Array
+ *           [value]     -> Array
+ *
+ * Find View by a given <i>value</i> which can be of following type:
+ *
+ * [Fixnum] Array index of the <code>_NET_DESKTOP_NAMES</code> property list.
+ * [String] Regexp match against name of Views, returns a View on single
+ *          match or an Array on multiple matches.
+ * [Symbol] Either <i>:current</i> for current View, <i>:all</i> for an
+ *          array of all Views or any string for an <b>exact</b> match.
+ *
+ *  Subtlext::View.find(1)
+ *  => [#<Subtlext::View:xxx>]
+ *
+ *  Subtlext::View.find("subtle")
+ *  => [#<Subtlext::View:xxx>]
+ *
+ *  Subtlext::View[".*"]
+ *  => [#<Subtlext::View:xxx>, #<Subtlext::View:xxx>]
+ *
+ *  Subtlext::View["subtle"]
+ *  => []
+ *
+ *  Subtlext::View[:terms]
+ *  => #<Subtlext::View:xxx>]
+ */
+
+VALUE
+subViewSingFind(VALUE self,
+  VALUE value)
+{
+  return ViewFind(value, False);
+} /* }}} */
+
+/* subViewSingFirst {{{ */
+/*
+ * call-seq: first(value) -> Subtlext::View or nil
+ *
+ * Find first View by a given <i>value</i> which can be of following type:
+ *
+ * [Fixnum] Array index of the <code>_NET_DESKTOP_NAMES</code> property list.
+ * [String] Regexp match against name of Views, returns a View on single
+ *          match or an Array on multiple matches.
+ * [Symbol] Either <i>:current</i> for current View, <i>:all</i> for an
+ *          array of all Views or any string for an <b>exact</b> match.
+ *
+ *  Subtlext::View.first(1)
+ *  => #<Subtlext::View:xxx>
+ *
+ *  Subtlext::View.first("subtle")
+ *  => #<Subtlext::View:xxx>
+ */
+
+VALUE
+subViewSingFirst(VALUE self,
+  VALUE value)
+{
+  return ViewFind(value, True);
 } /* }}} */
 
 /* subViewSingCurrent {{{ */
@@ -170,7 +205,7 @@ subViewSingCurrent(VALUE self)
 VALUE
 subViewSingVisible(VALUE self)
 {
-  int i, nnames = 0;
+  int i, nnames = 0, *tags = NULL;
   char **names = NULL;
   unsigned long *visible = NULL;
   VALUE meth = Qnil, klass = Qnil, array = Qnil, v = Qnil;
@@ -186,9 +221,11 @@ subViewSingVisible(VALUE self)
   visible = (unsigned long *)subSharedPropertyGet(display,
     DefaultRootWindow(display), XA_CARDINAL, XInternAtom(display,
     "SUBTLE_VISIBLE_VIEWS", False), NULL);
+  tags  = (int *)subSharedPropertyGet(display, ROOT, XA_CARDINAL,
+      XInternAtom(display, "SUBTLE_VIEW_TAGS", False), NULL);
 
   /* Check results */
-  if(names && visible)
+  if(names && visible && tags)
     {
       for(i = 0; i < nnames; i++)
         {
@@ -196,36 +233,40 @@ subViewSingVisible(VALUE self)
           if(*visible & (1L << (i + 1)) &&
               !NIL_P(v = rb_funcall(klass, meth, 1, rb_str_new2(names[i]))))
             {
-              rb_iv_set(v, "@id", INT2FIX(i));
+              rb_iv_set(v, "@id",   INT2FIX(i));
+              rb_iv_set(v, "@tags", INT2FIX(tags[i]));
+
               rb_ary_push(array, v);
             }
         }
-
-      XFreeStringList(names);
-      free(visible);
     }
+
+  if(names)   XFreeStringList(names);
+  if(visible) free(visible);
+  if(tags)    free(tags);
 
   return array;
 } /* }}} */
 
-/* subViewSingAll {{{ */
+/* subViewSingList {{{ */
 /*
- * call-seq: all -> Array
+ * call-seq: list -> Array
  *
  * Get an array of all Views based on the <code>_NET_DESKTOP_NAMES</code>
  * property list.
  *
- *  Subtlext::View.all
+ *  Subtlext::View.list
  *  => [#<Subtlext::View:xxx>, #<Subtlext::View:xxx>]
  *
- *  Subtlext::View.all
+ *  Subtlext::View.list
  *  => []
  */
 
 VALUE
-subViewSingAll(VALUE self)
+subViewSingList(VALUE self)
 {
   int i, nnames = 0;
+  long *tags = NULL;
   char **names = NULL;
   VALUE meth = Qnil, klass = Qnil, array = Qnil, v = Qnil;
 
@@ -235,27 +276,33 @@ subViewSingAll(VALUE self)
   klass = rb_const_get(mod, rb_intern("View"));
   meth  = rb_intern("new");
   array = rb_ary_new();
+  names = subSharedPropertyGetStrings(display, DefaultRootWindow(display),
+      XInternAtom(display, "_NET_DESKTOP_NAMES", False), &nnames);
+  tags  = (long *)subSharedPropertyGet(display, ROOT, XA_CARDINAL,
+      XInternAtom(display, "SUBTLE_VIEW_TAGS", False), NULL);
 
   /* Check results */
-  if((names = subSharedPropertyGetStrings(display, DefaultRootWindow(display),
-      XInternAtom(display, "_NET_DESKTOP_NAMES", False), &nnames)))
+  if(names && tags)
     {
       for(i = 0; i < nnames; i++)
         {
           if(!NIL_P(v = rb_funcall(klass, meth, 1, rb_str_new2(names[i]))))
             {
-              rb_iv_set(v, "@id",  INT2FIX(i));
+              rb_iv_set(v, "@id",   INT2FIX(i));
+              rb_iv_set(v, "@tags", LONG2NUM(tags[i]));
+
               rb_ary_push(array, v);
             }
         }
-
-      XFreeStringList(names);
     }
+
+  if(names) XFreeStringList(names);
+  if(tags)  free(tags);
 
   return array;
 } /* }}} */
 
-/* Class */
+/* Helper */
 
 /* subViewInstantiate {{{ */
 VALUE
@@ -271,6 +318,8 @@ subViewInstantiate(char *name)
 
   return view;
 } /* }}} */
+
+/* Class */
 
 /* subViewInit {{{ */
 /*
@@ -295,6 +344,7 @@ subViewInit(VALUE self,
   /* Init object */
   rb_iv_set(self, "@id",   Qnil);
   rb_iv_set(self, "@name", name);
+  rb_iv_set(self, "@tags", Qnil);
 
   subSubtlextConnect(NULL); ///< Implicit open connection
 
@@ -303,16 +353,52 @@ subViewInit(VALUE self,
 
 /* subViewUpdate {{{ */
 /*
- * call-seq: Update -> nil
+ * call-seq: update -> Subtlext::View
  *
  * Update View properties based on <b>required</b> View index.
  *
  *  view.update
- *  => nil
+ *  => #<Subtlext::View:xxx>
  */
 
 VALUE
 subViewUpdate(VALUE self)
+{
+  long *tags = NULL, ntags = 0;
+  VALUE id = Qnil;
+
+  /* Check ruby object */
+  rb_check_frozen(self);
+  GET_ATTR(self, "@id", id);
+
+  subSubtlextConnect(NULL); ///< Implicit open connection
+
+  /* Fetch tags */
+  if((tags = (long *)subSharedPropertyGet(display, ROOT, XA_CARDINAL,
+      XInternAtom(display, "SUBTLE_VIEW_TAGS", False), (unsigned long *)&ntags)))
+    {
+      int idx = FIX2INT(id);
+
+      rb_iv_set(self, "@tags", LONG2NUM(idx < ntags ? tags[idx] : 0));
+
+      free(tags);
+    }
+
+  return self;
+} /* }}} */
+
+/* subViewSave {{{ */
+/*
+ * call-seq: save -> Subtlext::View
+ *
+ * Save new View object.
+ *
+ *  view.save
+ *  => #<Subtlext::View:xxx>
+ */
+
+VALUE
+subViewSave(VALUE self)
 {
   int id = -1;
   VALUE name = Qnil;
@@ -344,17 +430,19 @@ subViewUpdate(VALUE self)
       char **names = NULL;
 
       /* Get names of views */
-      names = subSharedPropertyGetStrings(display, DefaultRootWindow(display),
-        XInternAtom(display, "_NET_DESKTOP_NAMES", False), &nnames);
+      if((names = subSharedPropertyGetStrings(display, DefaultRootWindow(display),
+          XInternAtom(display, "_NET_DESKTOP_NAMES", False), &nnames)))
+        {
+          id = nnames; ///< New id should be last
 
-      id = nnames; ///< New id should be last
-
-      if(names) XFreeStringList(names);
+          if(names) XFreeStringList(names);
+        }
     }
 
+  /* Set properties */
   rb_iv_set(self, "@id", INT2FIX(id));
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* subViewClients {{{ */
@@ -434,12 +522,12 @@ subViewClients(VALUE self)
 
 /* subViewJump {{{ */
 /*
- * call-seq: jump -> nil
+ * call-seq: jump -> Subtlext::View
  *
  * Set this View to the current active one
  *
  *  view.jump
- *  => nil
+ *  => #<Subtlext::View:xxx>
  */
 
 VALUE
@@ -456,11 +544,12 @@ subViewJump(VALUE self)
 
   /* Send message */
   data.l[0] = FIX2INT(id);
+  data.l[2] = -1;
 
   subSharedMessage(display, DefaultRootWindow(display),
     "_NET_CURRENT_DESKTOP", data, 32, True);
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* subViewSelectNext {{{ */
