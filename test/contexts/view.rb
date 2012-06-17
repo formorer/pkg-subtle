@@ -2,8 +2,8 @@
 # @package test
 #
 # @file Test Subtlext::View functions
-# @author Christoph Kappel <unexist@dorfelite.net>
-# @version $Id: test/contexts/view.rb,v 2991 2011/08/07 18:53:49 unexist $
+# @author Christoph Kappel <unexist@subforge.org>
+# @version $Id: test/contexts/view.rb,v 3169 2012/01/03 20:43:30 unexist $
 #
 # This program can be distributed under the terms of the GNU GPLv2.
 # See the file COPYING for details.
@@ -16,7 +16,7 @@ context 'View' do
   VIEW_TAG   = :default
 
   setup do # {{{
-    Subtlext::View[VIEW_ID]
+    Subtlext::View.first(VIEW_ID)
   end # }}}
 
   asserts 'Check attributes' do # {{{
@@ -24,31 +24,45 @@ context 'View' do
   end # }}}
 
   asserts 'Get list' do # {{{
-    list = Subtlext::View.all
+    list = Subtlext::View.list
 
-    list.is_a? Array and VIEW_COUNT == list.size
+    list.is_a?(Array) and VIEW_COUNT == list.size and
+      Subtlext::View.method(:all) == Subtlext::View.method(:list)
   end # }}}
 
   asserts 'Finder' do # {{{
     index  = Subtlext::View[VIEW_ID]
     string = Subtlext::View[VIEW_NAME]
     sym    = Subtlext::View[VIEW_NAME.to_sym]
-    all    = Subtlext::View['.*']
+    all    = Subtlext::View.find('.*')
+    none   = Subtlext::View['abcdef']
 
     index == string and index == sym and
-      all.is_a? Array and VIEW_COUNT == all.size
+      all.is_a?(Array) and VIEW_COUNT == all.size and
+      none.nil?
+  end # }}}
+
+  asserts 'First' do # {{{
+    index  = Subtlext::View.first(VIEW_ID)
+    string = Subtlext::View.first(VIEW_NAME)
+
+    index == string
   end # }}}
 
   asserts 'Equal and compare' do # {{{
-    topic.eql? Subtlext::View[VIEW_ID] and topic == topic
+    topic.eql?(Subtlext::View.first(VIEW_ID)) and topic == topic
+  end # }}}
+
+  asserts 'Hash and unique' do # {{{
+    1 == [ topic, topic ].uniq.size
   end # }}}
 
   asserts 'Check associations' do # {{{
     clients = topic.clients
     tags    = topic.tags
 
-    clients.is_a? Array and 1 == clients.size and
-      tags.is_a? Array and 2 == tags.size
+    clients.is_a?(Array) and 1 == clients.size and
+      tags.is_a?(Array) and 2 == tags.size
   end # }}}
 
   asserts 'Check icon' do # {{{
@@ -64,7 +78,7 @@ context 'View' do
   end # }}}
 
   asserts 'Create new view' do # {{{
-    v = Subtlext::View.new 'test'
+    v = Subtlext::View.new('test')
     v.save
 
     sleep 1
@@ -118,7 +132,7 @@ context 'View' do
   end # }}}
 
   asserts 'Kill a view' do # {{{
-    Subtlext::View['test'].kill
+    Subtlext::View.first('test').kill
 
     sleep 1
 

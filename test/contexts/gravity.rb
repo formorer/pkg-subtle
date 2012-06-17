@@ -2,8 +2,8 @@
 # @package test
 #
 # @file Test Subtlext::Gravity functions
-# @author Christoph Kappel <unexist@dorfelite.net>
-# @version $Id: test/contexts/gravity.rb,v 2917 2011/07/05 18:11:41 unexist $
+# @author Christoph Kappel <unexist@subforge.org>
+# @version $Id: test/contexts/gravity.rb,v 3169 2012/01/03 20:43:30 unexist $
 #
 # This program can be distributed under the terms of the GNU GPLv2.
 # See the file COPYING for details.
@@ -15,7 +15,7 @@ context 'Gravity' do
   GRAVITY_NAME  = 'center'
 
   setup do # {{{
-    Subtlext::Gravity[GRAVITY_ID]
+    Subtlext::Gravity.first(GRAVITY_ID)
   end # }}}
 
   asserts 'Check attributes' do # {{{
@@ -24,29 +24,50 @@ context 'Gravity' do
   end # }}}
 
   asserts 'Get list' do # {{{
-    list = Subtlext::Gravity.all
+    list = Subtlext::Gravity.list
 
-    list.is_a?(Array) and GRAVITY_COUNT == list.size
+    list.is_a?(Array) and GRAVITY_COUNT == list.size and
+      Subtlext::Gravity.method(:all) == Subtlext::Gravity.method(:list)
   end # }}}
 
   asserts 'Finder' do # {{{
     index  = Subtlext::Gravity[GRAVITY_ID]
     string = Subtlext::Gravity[GRAVITY_NAME + '$']
     sym    = Subtlext::Gravity[GRAVITY_NAME.to_sym]
-    all    = Subtlext::Gravity['.*']
+    all    = Subtlext::Gravity.find('.*')
+    none   = Subtlext::Gravity['abcdef']
 
     index == string and index == sym and
-      all.is_a? Array and GRAVITY_COUNT == all.size
+      all.is_a?(Array) and GRAVITY_COUNT == all.size and
+      none.nil?
+  end # }}}
+
+  asserts 'First' do # {{{
+    index  = Subtlext::Gravity.first(GRAVITY_ID)
+    string = Subtlext::Gravity.first(GRAVITY_NAME)
+
+    index == string
   end # }}}
 
   asserts 'Equal and compare' do # {{{
-    topic.eql? Subtlext::Gravity[GRAVITY_ID] and topic == topic
+    topic.eql?(Subtlext::Gravity.first(GRAVITY_ID)) and topic == topic
+  end # }}}
+
+  asserts 'Hash and unique' do # {{{
+    1 == [ topic, topic ].uniq.size
   end # }}}
 
   asserts 'Check associations' do # {{{
     clients = topic.clients
 
-    clients.is_a? Array and 1 == clients.size
+    clients.is_a?(Array) and 1 == clients.size
+  end # }}}
+
+  asserts 'Check geometry for screen' do # {{{
+    screen = Subtlext::Screen.current
+    geom   = topic.geometry_for(screen)
+
+    screen.geometry == geom
   end # }}}
 
   asserts 'Convert to string' do # {{{
@@ -54,8 +75,7 @@ context 'Gravity' do
   end # }}}
 
   asserts 'Create new gravity' do # {{{
-    g = Subtlext::Gravity.new 'test'
-    g.geometry = Subtlext::Geometry.new 0, 0, 100, 100
+    g = Subtlext::Gravity.new('test', 0, 0, 100, 100)
     g.save
 
     sleep 0.5
@@ -63,8 +83,16 @@ context 'Gravity' do
     GRAVITY_COUNT + 1 == Subtlext::Gravity.all.size
   end # }}}
 
+  asserts 'Test tiling' do # {{{
+    topic.tiling = :vert
+    topic.tiling = :horz
+    topic.tiling = nil
+
+    true
+  end # }}}
+
   asserts 'Kill a gravity' do # {{{
-    Subtlext::Gravity['test'].kill
+    Subtlext::Gravity.first('test').kill
 
     sleep 0.5
 

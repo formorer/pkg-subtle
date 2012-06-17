@@ -2,8 +2,8 @@
   * @package subtle
   *
   * @file subtle ruby extension
-  * @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtlext/subtle.c,v 2986 2011/08/07 14:12:30 unexist $
+  * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtlext/subtle.c,v 3168 2012/01/03 16:02:50 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -82,7 +82,7 @@ subSubtleSingDisplayWriter(VALUE self,
 VALUE
 subSubtleSingAskRunning(VALUE self)
 {
-  char *prop = NULL;
+  char *version = NULL;
   Window *support = NULL;
   VALUE running = Qfalse;
 
@@ -93,17 +93,14 @@ subSubtleSingAskRunning(VALUE self)
       DefaultRootWindow(display), XA_WINDOW, XInternAtom(display,
       "_NET_SUPPORTING_WM_CHECK", False), NULL)))
     {
-      subSharedLogDebugSubtlext("Support: win=%#lx\n", *support);
-
-      /* Get property */
-      if((prop = subSharedPropertyGet(display, *support, XInternAtom(display,
-          "UTF8_STRING", False), XInternAtom(display, "_NET_WM_NAME", False),
+      /* Get version property */
+      if((version = subSharedPropertyGet(display, *support, XInternAtom(display,
+          "UTF8_STRING", False), XInternAtom(display, "SUBTLE_VERSION", False),
           NULL)))
         {
-          if(!strncmp(prop, PKG_NAME, strlen(prop))) running = Qtrue;
-          subSharedLogDebugSubtlext("Running: wmname=%s\n", prop);
+          running = Qtrue;
 
-          free(prop);
+          free(version);
         }
 
       free(support);
@@ -282,22 +279,20 @@ subSubtleSingColors(VALUE self)
   unsigned long ncolors = 0, *colors = NULL;
   VALUE meth = Qnil, klass = Qnil, hash = Qnil;
   const char *names[] = {
-    "title_fg",            "title_bg",             "title_bo_top",
-    "title_bo_right",      "title_bo_bottom",      "title_bo_left",
-    "view_fg",             "view_bg",              "view_bo_top",
-    "view_bo_right",       "view_bo_bottom",       "view_bo_left",
-    "focus_fg",            "focus_bg",             "focus_bo_top",
-    "focus_bo_right",      "focus_bo_bottom",      "focus_bo_left",
-    "urgent_fg",           "urgent_bg",            "urgent_bo_top",
-    "urgent_bo_right",     "urgent_bo_bottom",     "urgent_bo_left",
-    "occupied_fg",         "occupied_bg",          "occupied_bo_top",
-    "occupied_bo_right",   "occupied_bo_bottom",   "occupied_bo_left",
-    "unoccupied_fg",       "unoccupied_bg",        "unoccupied_bo_top",
-    "unoccupied_bo_right", "unoccupied_bo_bottom", "unoccupied_bo_left",
-    "sublets_fg",         "sublets_bg",            "sublets_bo_top",
-    "sublets_bo_right",   "sublets_bo_bottom",     "sublets_bo_left",
-    "separator_fg",       "separator_bg",          "separator_bo_top",
-    "separator_bo_right", "separator_bo_bottom",   "separator_bo_left",
+    "title_fg",           "title_bg",             "title_bo_top",
+    "title_bo_right",     "title_bo_bottom",      "title_bo_left",
+    "views_fg",           "views_bg",             "views_bo_top",
+    "views_bo_right",     "views_bo_bottom",      "views_bo_left",
+    "focus_fg",           "focus_bg",             "focus_bo_top",
+    "focus_bo_right",     "focus_bo_bottom",      "focus_bo_left",
+    "urgent_fg",          "urgent_bg",            "urgent_bo_top",
+    "urgent_bo_right",    "urgent_bo_bottom",     "urgent_bo_left",
+    "occupied_fg",        "occupied_bg",          "occupied_bo_top",
+    "occupied_bo_right",  "occupied_bo_bottom",   "occupied_bo_left",
+    "sublets_fg",         "sublets_bg",           "sublets_bo_top",
+    "sublets_bo_right",   "sublets_bo_bottom",    "sublets_bo_left",
+    "separator_fg",       "separator_bg",         "separator_bo_top",
+    "separator_bo_right", "separator_bo_bottom",  "separator_bo_left",
     "client_active",      "client_inactive",
     "panel_top",          "panel_bottom",
     "stipple",            "background"

@@ -2,8 +2,8 @@
   * @package subtlext
   *
   * @file Client functions
-  * @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtlext/client.c,v 2986 2011/08/07 14:12:30 unexist $
+  * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtlext/client.c,v 3216 2012/06/15 17:18:12 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -33,7 +33,7 @@ ClientRestack(VALUE self,
   subSharedMessage(display, DefaultRootWindow(display),
     "_NET_RESTACK_WINDOW", data, 32, True);
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* ClientFlagsGet {{{ */
@@ -87,7 +87,7 @@ ClientFlagsSet(VALUE self,
 
   rb_iv_set(self, "@flags", INT2FIX(iflags));
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* ClientFlagsToggle {{{ */
@@ -120,7 +120,7 @@ ClientFlagsToggle(VALUE self,
 
   subSharedMessage(display, NUM2LONG(win), "_NET_WM_STATE", data, 32, True);
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* ClientGravity {{{ */
@@ -136,20 +136,22 @@ ClientGravity(VALUE key,
   /* Find gravity */
   if(RTEST(value))
     {
-      VALUE gravity = subGravitySingFind(Qnil, value);
+      VALUE gravity = Qnil;
 
-      data.l[1] = RTEST(gravity) ? FIX2INT(rb_iv_get(gravity, "@id")) : -1;
+      if(RTEST((gravity = subGravitySingFirst(Qnil, value))))
+        data.l[1] = FIX2INT(rb_iv_get(gravity, "@id"));
     }
 
   /* Find view id if any */
   if(RTEST(key))
     {
-      VALUE view = subViewSingFind(Qnil, key);
+      VALUE view = Qnil;
 
-      data.l[2] = RTEST(view) ? FIX2INT(rb_iv_get(view, "@id")) : -1;
+      if(RTEST((view = subViewSingFirst(Qnil, key))))
+        data.l[2] = FIX2INT(rb_iv_get(view, "@id"));
     }
 
-  /* Finally send */
+  /* Finally send message */
   if(-1 != data.l[0] && -1 != data.l[1])
     {
       subSharedMessage(display, DefaultRootWindow(display),
@@ -157,6 +159,38 @@ ClientGravity(VALUE key,
     }
 
   return ST_CONTINUE;
+} /* }}} */
+
+/* ClientFind {{{ */
+static VALUE
+ClientFind(VALUE value,
+  int first)
+{
+  int flags = 0;
+  VALUE parsed = Qnil;
+  char buf[50] = { 0 };
+
+  subSubtlextConnect(NULL); ///< Implicit open connection
+
+  /* Check object type */
+  switch(rb_type(parsed = subSubtlextParse(
+      value, buf, sizeof(buf), &flags)))
+    {
+      case T_SYMBOL:
+        if(CHAR2SYM("visible") == parsed)
+          return subClientSingVisible(Qnil);
+        else if(CHAR2SYM("all") == parsed)
+          return subClientSingList(Qnil);
+        else if(CHAR2SYM("current") == parsed)
+          return subClientSingCurrent(Qnil);
+        break;
+      case T_OBJECT:
+        if(rb_obj_is_instance_of(value, rb_const_get(mod, rb_intern("Client"))))
+          return parsed;
+    }
+
+  return subSubtlextFindWindows("_NET_CLIENT_LIST", "Client",
+    buf, flags, first);
 } /* }}} */
 
 /* Singleton */
@@ -181,8 +215,8 @@ subClientSingSelect(VALUE self)
 
 /* subClientSingFind {{{ */
 /*
- * call-seq: find(value) -> Subtlext::Client or nil
- *           [value]     -> Subtlext::Client or nil
+ * call-seq: find(value) -> Array
+ *           [value]     -> Array
  *
  * Find Client by a given <i>value</i> which can be of following type:
  *
@@ -203,94 +237,68 @@ subClientSingSelect(VALUE self)
  *          array of all Views or any string for an <b>exact</b> match.
  *
  *  Subtlext::Client.find(1)
- *  => #<Subtlext::Client:xxx>
+ *  => [#<Subtlext::Client:xxx>]
  *
  *  Subtlext::Client.find("subtle")
- *  => #<Subtlext::Client:xxx>
+ *  => [#<Subtlext::Client:xxx>]
  *
  *  Subtlext::Client[".*"]
  *  => [#<Subtlext::Client:xxx>, #<Subtlext::Client:xxx>]
  *
  *  Subtlext::Client["subtle"]
- *  => nil
+ *  => []
  *
  *  Subtlext::Client[:terms]
- *  => #<Subtlext::Client:xxx>
+ *  => [#<Subtlext::Client:xxx>]
  *
  *  Subtlext::Client[name: "subtle"]
- *  => #<Subtlext::Client:xxx>
+ *  => [#<Subtlext::Client:xxx>]
  */
 
 VALUE
 subClientSingFind(VALUE self,
   VALUE value)
 {
-  int i, flags = 0, size = 0;
-  VALUE ret = Qnil, parsed = Qnil, client = Qnil;
-  char buf[50] = { 0 };
-  Window *wins = NULL;
+  return ClientFind(value, False);
+} /* }}} */
 
-  subSubtlextConnect(NULL); ///< Implicit open connection
+/* subClientSingFirst {{{ */
+/*
+ * call-seq: first(value) -> Subtlext::Client or nil
+ *
+ * Find first Client by a given <i>value</i> which can be of following type:
+ *
+ * [Fixnum] Array index of the <code>_NET_CLIENT_LIST</code> property list.
+ * [String] Regexp match against both <code>WM_CLASS</code> values.
+ * [Hash]   Instead of just match <code>WM_CLASS</code> match against
+ *          following properties:
+ *
+ *          [:name]     Match against <code>WM_NAME</code>
+ *          [:instance] Match against first value of <code>WM_NAME</code>
+ *          [:class]    Match against second value of <code>WM_NAME</code>
+ *          [:gravity]  Match against window Gravity
+ *          [:role]     Match against <code>WM_ROLE</code>
+ *          [:pid]      Match against window pid
+ *
+ *          With one of following keys: :title, :name, :class, :gravity
+ * [Symbol] Either <i>:current</i> for current View, <i>:all</i> for an
+ *          array of all Views or any string for an <b>exact</b> match.
+ *
+ *  Subtlext::Client.first(1)
+ *  => #<Subtlext::Client:xxx>
+ *
+ *  Subtlext::Client.first("subtle")
+ *  => #<Subtlext::Client:xxx>
+ *
+ *  Subtlext::Client.first(name: "subtle")
+ *  => #<Subtlext::Client:xxx>
+ */
 
-  /* Check object type */
-  switch(rb_type(parsed = subSubtlextParse(
-      value, buf, sizeof(buf), &flags)))
-    {
-      case T_SYMBOL:
-        if(CHAR2SYM("visible") == parsed)
-          return subClientSingVisible(Qnil);
-        else if(CHAR2SYM("all") == parsed)
-          return subClientSingAll(Qnil);
-        else if(CHAR2SYM("current") == parsed)
-          return subClientSingCurrent(Qnil);
-        break;
-      case T_OBJECT:
-        if(rb_obj_is_instance_of(value, rb_const_get(mod, rb_intern("Client"))))
-          return parsed;
-    }
-
-  /* Get client list */
-  if((wins = subSubtlextWindowList("_NET_CLIENT_LIST", &size)))
-    {
-      int selid = -1;
-      Window selwin = None;
-      VALUE meth = Qnil, klass = Qnil;
-      regex_t *preg = NULL;
-
-      /* Create regexp when required */
-      if(!(flags & SUB_MATCH_EXACT)) preg = subSharedRegexNew(buf);
-
-      /* Special values */
-      if(FIXNUM_P(value)) selid  = (int)FIX2INT(value);
-      if('#' == buf[0])   selwin = subSubtleSingSelect(Qnil);
-
-      /* Fetch data */
-      meth  = rb_intern("new");
-      klass = rb_const_get(mod, rb_intern("Client"));
-
-      /* Check each client */
-      for(i = 0; i < size; i++)
-        {
-          if(selid == i || selid == wins[i] || selwin == wins[i] ||
-              (-1 == selid && subSubtlextWindowMatch(wins[i],
-                preg, buf, NULL, flags)))
-            {
-              /* Create new client */
-              if(RTEST((client = rb_funcall(klass, meth,
-                  1, LONG2NUM(wins[i])))))
-                {
-                  subClientUpdate(client);
-
-                  ret = subSubtlextOneOrMany(client, ret);
-                }
-            }
-        }
-
-      if(preg) subSharedRegexKill(preg);
-      free(wins);
-    }
-
-  return ret;
+VALUE
+subClientSingFirst(VALUE self,
+  VALUE value)
+{
+  return ClientFind(value, True);
 } /* }}} */
 
 /* subClientSingCurrent {{{ */
@@ -322,7 +330,7 @@ subClientSingCurrent(VALUE self)
 
       free(focus);
     }
-  else rb_raise(rb_eStandardError, "Failed getting current client");
+  else rb_raise(rb_eStandardError, "Invalid current window");
 
   return client;
 } /* }}} */
@@ -386,22 +394,22 @@ subClientSingVisible(VALUE self)
   return array;
 } /* }}} */
 
-/* subClientSingAll {{{ */
+/* subClientSingList {{{ */
 /*
- * call-seq: all -> Array
+ * call-seq: list -> Array
  *
  * Get an array of all Clients based on <code>_NET_CLIENT_LIST</code>
  * property list.
  *
- *  Subtlext::Client.all
+ *  Subtlext::Client.list
  *  => [#<Subtlext::Client:xxx>, #<Subtlext::Client:xxx>]
  *
- *  Subtlext::Client.all
+ *  Subtlext::Client.list
  *  => []
  */
 
 VALUE
-subClientSingAll(VALUE self)
+subClientSingList(VALUE self)
 {
   int i, nclients = 0;
   Window *clients = NULL;
@@ -478,7 +486,7 @@ subClientSingRecent(VALUE self)
   return array;
 } /* }}} */
 
-/* Class */
+/* Helper */
 
 /* subClientInstantiate {{{ */
 VALUE
@@ -492,6 +500,8 @@ subClientInstantiate(Window win)
 
   return client;
 } /* }}} */
+
+/* Class */
 
 /* subClientInit {{{ */
 /*
@@ -510,7 +520,8 @@ subClientInit(VALUE self,
   VALUE win)
 {
   if(!FIXNUM_P(win))
-    rb_raise(rb_eArgError, "Unexpected value-type `%s'", rb_obj_classname(win));
+    rb_raise(rb_eArgError, "Unexpected value-type `%s'",
+      rb_obj_classname(win));
 
   /* Init object */
   rb_iv_set(self, "@win",      win);
@@ -522,6 +533,7 @@ subClientInit(VALUE self,
   rb_iv_set(self, "@gravity",  Qnil);
   rb_iv_set(self, "@screen",   Qnil);
   rb_iv_set(self, "@flags",    Qnil);
+  rb_iv_set(self, "@tags",     Qnil);
 
   subSubtlextConnect(NULL); ///< Implicit open connection
 
@@ -530,7 +542,7 @@ subClientInit(VALUE self,
 
 /* subClientUpdate {{{ */
 /*
- * call-seq: update -> nil
+ * call-seq: update -> Subtlext::Client
  *
  * Update Client properties based on <b>required</b> Client window id.
  *
@@ -546,26 +558,26 @@ subClientUpdate(VALUE self)
   rb_check_frozen(self);
   subSubtlextConnect(NULL); ///< Implicit open connection
 
-  /* Get client values */
-  win = NUM2LONG(rb_iv_get(self, "@win"));
-
   /* Check values */
-  if(0 <= win)
+  if(0 <= (win = NUM2LONG(rb_iv_get(self, "@win"))))
     {
-      int *flags = NULL;
+      int *tags = NULL, *flags = NULL;
       char *wmname = NULL, *wminstance = NULL, *wmclass = NULL, *role = NULL;
 
       /* Fetch name, instance and class */
       subSharedPropertyClass(display, win, &wminstance, &wmclass);
       subSharedPropertyName(display, win, &wmname, wmclass);
 
-      /* Fetch window flags and role */
+      /* Fetch tags, flags and role */
+      tags  = (int *)subSharedPropertyGet(display, win, XA_CARDINAL,
+        XInternAtom(display, "SUBTLE_CLIENT_TAGS", False), NULL);
       flags = (int *)subSharedPropertyGet(display, win, XA_CARDINAL,
         XInternAtom(display, "SUBTLE_CLIENT_FLAGS", False), NULL);
-      role = subSharedPropertyGet(display, win, XA_STRING,
+      role  = subSharedPropertyGet(display, win, XA_STRING,
         XInternAtom(display, "WM_WINDOW_ROLE", False), NULL);
 
       /* Set properties */
+      rb_iv_set(self, "@tags",     tags  ? INT2FIX(*tags)  : INT2FIX(0));
       rb_iv_set(self, "@flags",    flags ? INT2FIX(*flags) : INT2FIX(0));
       rb_iv_set(self, "@name",     rb_str_new2(wmname));
       rb_iv_set(self, "@instance", rb_str_new2(wminstance));
@@ -576,15 +588,16 @@ subClientUpdate(VALUE self)
       rb_iv_set(self, "@geometry", Qnil);
       rb_iv_set(self, "@gravity",  Qnil);
 
+      if(tags)  free(tags);
       if(flags) free(flags);
-      if(role) free(role);
+      if(role)  free(role);
       free(wmname);
       free(wminstance);
       free(wmclass);
     }
-  else rb_raise(rb_eStandardError, "Invalid client");
+  else rb_raise(rb_eStandardError, "Invalid client id `%#lx'", win);
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* subClientViewList {{{ */
@@ -809,7 +822,7 @@ subClientFlagsAskBorderless(VALUE self)
 
 /* subClientFlagsToggleFull {{{ */
 /*
- * call-seq: toggle_full -> nil
+ * call-seq: toggle_full -> Subtlext::Client
  *
  * Toggle Client fullscreen state.
  *
@@ -825,7 +838,7 @@ subClientFlagsToggleFull(VALUE self)
 
 /* subClientFlagsToggleFloat {{{ */
 /*
- * call-seq: toggle_float -> nil
+ * call-seq: toggle_float -> Subtlext::Client
  *
  * Toggle Client floating state.
  *
@@ -841,7 +854,7 @@ subClientFlagsToggleFloat(VALUE self)
 
 /* subClientFlagsToggleStick {{{ */
 /*
- * call-seq: toggle_stick -> nil
+ * call-seq: toggle_stick -> Subtlext::Client
  *
  * Toggle Client sticky state.
  *
@@ -857,7 +870,7 @@ subClientFlagsToggleStick(VALUE self)
 
 /* subClientFlagsToggleResize {{{ */
 /*
- * call-seq: toggle_stick -> nil
+ * call-seq: toggle_stick -> Subtlext::Client
  *
  * Toggle Client resize state.
  *
@@ -873,7 +886,7 @@ subClientFlagsToggleResize(VALUE self)
 
 /* subClientFlagsToggleUrgent {{{ */
 /*
- * call-seq: toggle_urgent -> nil
+ * call-seq: toggle_urgent -> Subtlext::Client
  *
  * Toggle Client urgent state.
  *
@@ -889,7 +902,7 @@ subClientFlagsToggleUrgent(VALUE self)
 
 /* subClientFlagsToggleZaphod {{{ */
 /*
- * call-seq: toggle_zaphod -> nil
+ * call-seq: toggle_zaphod -> Subtlext::Client
  *
  * Toggle Client zaphod state.
  *
@@ -905,7 +918,7 @@ subClientFlagsToggleZaphod(VALUE self)
 
 /* subClientFlagsToggleFixed {{{ */
 /*
- * call-seq: toggle_fixed -> nil
+ * call-seq: toggle_fixed -> Subtlext::Client
  *
  * Toggle Client fixed state.
  *
@@ -921,7 +934,7 @@ subClientFlagsToggleFixed(VALUE self)
 
 /* subClientFlagsToggleBorderless {{{ */
 /*
- * call-seq: toggle_borderless -> nil
+ * call-seq: toggle_borderless -> Subtlext::Client
  *
  * Toggle Client borderless state.
  *
@@ -937,7 +950,7 @@ subClientFlagsToggleBorderless(VALUE self)
 
 /* subClientFlagsWriter {{{ */
 /*
- * call-seq: flags=(array) -> nil
+ * call-seq: flags=(array) -> Subtlext::Client
  *
  * Set multiple flags at once. Flags can be one or a combination of the
  * following:
@@ -981,12 +994,12 @@ subClientFlagsWriter(VALUE self,
       ClientFlagsSet(self, flags, False);
     }
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* subClientRestackRaise {{{ */
 /*
- * call-seq: raise -> nil
+ * call-seq: raise -> Subtlext::Client
  *
  * Move Client window to top of window stack.
  *
@@ -1002,7 +1015,7 @@ subClientRestackRaise(VALUE self)
 
 /* subClientRestackLower {{{ */
 /*
- * call-seq: lower -> nil
+ * call-seq: lower -> Subtlext::Client
  *
  * Move Client window to bottom of window stack.
  *
@@ -1084,7 +1097,7 @@ subClientGravityReader(VALUE self)
           snprintf(buf, sizeof(buf), "%d", *id);
           gravity = subGravityInstantiate(buf);
 
-          subGravityUpdate(gravity);
+          subGravitySave(gravity);
 
           rb_iv_set(self, "@gravity", gravity);
 
@@ -1097,63 +1110,59 @@ subClientGravityReader(VALUE self)
 
 /* subClientGravityWriter {{{ */
 /*
- * call-seq: gravity=(fixnum) -> nil
- *           gravity=(symbol) -> nil
- *           gravity=(object) -> nil
- *           gravity=(hash)   -> nil
+ * call-seq: gravity=(fixnum) -> Fixnum
+ *           gravity=(symbol) -> Symbol
+ *           gravity=(object) -> Object
+ *           gravity=(hash)   -> Hash
  *
  * Set Client Gravity either for current or for specific View.
  *
  *  # Set gravity for current view
  *  client.gravity = 0
- *  => nil
+ *  => #<Subtlext::Gravity:xxx>
  *
  *  client.gravity = :center
- *  => nil
+ *  => #<Subtlext::Gravity:xxx>
  *
  *  client.gravity = Subtlext::Gravity[0]
- *  => nil
+ *  => #<Subtlext::Gravity:xxx>
  *
  *  # Set gravity for specific view
  *  client.gravity = { :terms => :center }
- *  => nil
+ *  => #<Subtlext::Gravity:xxx>
  */
 
 VALUE
 subClientGravityWriter(VALUE self,
   VALUE value)
 {
-  VALUE gravity = Qnil;
-
   /* Check ruby object */
   rb_check_frozen(self);
 
   subSubtlextConnect(NULL); ///< Implicit open connection
 
-  /* Check instance type */
+  /* Check value type */
   switch(rb_type(value))
     {
       case T_FIXNUM:
       case T_SYMBOL:
+      case T_STRING: ClientGravity(Qnil, value, self); break;
       case T_OBJECT:
         if(rb_obj_is_instance_of(value,
-            rb_const_get(mod, rb_intern("Gravity"))) ||
-            RTEST(gravity = subGravitySingFind(Qnil, value)))
-          {
-            ClientGravity(Qnil, gravity, self);
-
-            rb_iv_set(self, "@gravity", gravity);
-          }
+            rb_const_get(mod, rb_intern("Gravity"))))
+          ClientGravity(Qnil, value, self);
         break;
       case T_HASH:
         rb_hash_foreach(value, ClientGravity, self);
-        rb_iv_set(self, "@gravity", Qnil); ///< Reset to update on demand
         break;
       default: rb_raise(rb_eArgError, "Unexpected value-type `%s'",
         rb_obj_classname(value));
     }
 
-  return Qnil;
+  /* Reset gravity */
+  rb_iv_set(self, "@gravity", Qnil);
+
+  return value;
 } /* }}} */
 
 /* subClientGeometryReader {{{ */
@@ -1195,17 +1204,25 @@ subClientGeometryReader(VALUE self)
 
 /* subClientGeometryWriter {{{ */
 /*
- * call-seq: geometry=(x, y, width, height) -> Subtlext::Geometry
- *           geometry=(array)               -> Subtlext::Geometry
+ * call-seq: geometry=(x, y, width, height) -> Fixnum
+ *           geometry=(array)               -> Array
+ *           geometry=(hash)                -> Hash
+ *           geometry=(string)              -> String
  *           geometry=(geometry)            -> Subtlext::Geometry
  *
  * Set Client geometry.
  *
  *  client.geometry = 0, 0, 100, 100
- *  => #<Subtlext::Geometry:xxx>
+ *  => 0
  *
  *  client.geometry = [ 0, 0, 100, 100 ]
- *  => #<Subtlext::Geometry:xxx>
+ *  => [ 0, 0, 100, 100 ]
+ *
+ *  client.geometry = { x: 0, y: 0, width: 100, height: 100 }
+ *  => { x: 0, y: 0, width: 100, height: 100 }
+ *
+ *  client.geometry = "0x0+100+100"
+ *  => "0x0+100+100"
  *
  *  client.geometry = Subtlext::Geometry(0, 0, 100, 100)
  *  => #<Subtlext::Geometry:xxx>
@@ -1216,35 +1233,36 @@ subClientGeometryWriter(int argc,
   VALUE *argv,
   VALUE self)
 {
-  VALUE klass = Qnil, geometry = Qnil;
+  VALUE klass = Qnil, geom = Qnil;
 
+  /* Check ruby object */
   rb_check_frozen(self);
   subSubtlextConnect(NULL); ///< Implicit open connection
 
   /* Delegate arguments */
-  klass    = rb_const_get(mod, rb_intern("Geometry"));
-  geometry = rb_funcall2(klass, rb_intern("new"), argc, argv);
+  klass = rb_const_get(mod, rb_intern("Geometry"));
+  geom  = rb_funcall2(klass, rb_intern("new"), argc, argv);
 
   /* Update geometry */
-  if(RTEST(geometry))
+  if(RTEST(geom))
     {
       VALUE win = Qnil;
       SubMessageData data = { { 0, 0, 0, 0, 0 } };
 
       GET_ATTR(self, "@win", win);
 
-      data.l[1] = FIX2INT(rb_iv_get(geometry,  "@x"));
-      data.l[2] = FIX2INT(rb_iv_get(geometry,  "@y"));
-      data.l[3] = FIX2INT(rb_iv_get(geometry,  "@width"));
-      data.l[4] = FIX2INT(rb_iv_get(geometry,  "@height"));
+      data.l[1] = FIX2INT(rb_iv_get(geom,  "@x"));
+      data.l[2] = FIX2INT(rb_iv_get(geom,  "@y"));
+      data.l[3] = FIX2INT(rb_iv_get(geom,  "@width"));
+      data.l[4] = FIX2INT(rb_iv_get(geom,  "@height"));
 
       subSharedMessage(display, NUM2LONG(win),
         "_NET_MOVERESIZE_WINDOW", data, 32, True);
 
-      rb_iv_set(self, "@geometry", geometry);
+      rb_iv_set(self, "@geometry", geom);
     }
 
-  return geometry;
+  return geom;
 } /* }}} */
 
 /* subClientScreenReader {{{ */

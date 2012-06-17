@@ -3,8 +3,8 @@
   * @package subtle
   *
   * @file Tray functions
-  * @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtle/tray.c,v 2736 2011/03/23 16:04:13 unexist $
+  * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtle/tray.c,v 3168 2012/01/03 16:02:50 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -22,6 +22,8 @@ SubTray *
 subTrayNew(Window win)
 {
   SubTray *t = NULL;
+  int i, n = 0;
+  Atom *protos = NULL;
 
   assert(win);
 
@@ -39,11 +41,26 @@ subTrayNew(Window win)
   XAddToSaveSet(subtle->dpy, t->win);
   XSaveContext(subtle->dpy, t->win, TRAYID, (void *)t);
 
+  /* Window manager protocols */
+  if(XGetWMProtocols(subtle->dpy, t->win, &protos, &n))
+    {
+      for(i = 0; i < n; i++)
+        {
+          switch(subEwmhFind(protos[i]))
+            {
+              case SUB_EWMH_WM_DELETE_WINDOW: t->flags |= SUB_TRAY_CLOSE; break;
+              default: break;
+            }
+         }
+
+      XFree(protos);
+    }
+
   /* Start embedding life cycle */
   subEwmhMessage(t->win, SUB_EWMH_XEMBED, 0xFFFFFF, CurrentTime,
     XEMBED_EMBEDDED_NOTIFY, 0, subtle->windows.tray, 0);
 
-  subSharedLogDebugSubtle("new=tray, name=%s, win=%#lx\n", t->name, win);
+  subSubtleLogDebugSubtle("New: name=%s, win=%#lx\n", t->name, win);
 
   return t;
 } /* }}} */
@@ -64,7 +81,8 @@ subTrayConfigure(SubTray *t)
   /* Size hints */
   if(!(hints = XAllocSizeHints()))
     {
-      subSharedLogError("Can't alloc memory. Exhausted?\n");
+      subSubtleLogError("Cannot alloc memory. Exhausted?\n");
+
       abort();
     }
 
@@ -80,7 +98,7 @@ subTrayConfigure(SubTray *t)
     }
   XFree(hints);
 
-  subSharedLogDebug("Tray: width=%d, supplied=%ld\n", t->width, supplied);
+  subSubtleLogDebug("Configure: width=%d, supplied=%ld\n", t->width, supplied);
 } /* }}} */
 
  /** subTrayUpdate {{{
@@ -170,9 +188,9 @@ subTraySelect(void)
 
   if(XGetSelectionOwner(subtle->dpy, selection) == subtle->windows.tray)
     {
-      subSharedLogDebug("Selection: type=%ld\n", selection);
+      subSubtleLogDebug("Selection: type=%ld\n", selection);
     }
-  else subSharedLogError("Failed getting tray selection\n");
+  else subSubtleLogError("Cannot get system tray selection\n");
 
   /* Send manager info */
   subEwmhMessage(ROOT, SUB_EWMH_MANAGER, 0xFFFFFF, CurrentTime,
@@ -197,27 +215,46 @@ subTrayDeselect(void)
     }
 } /* }}} */
 
- /** subTrayPublish {{{
-  * @brief Publish trays
+ /** subTrayClose {{{
+  * @brief Send tray delete message or just kill it
+  * @param[in]  t  A #SubTray
   **/
 
 void
-subTrayPublish(void)
+subTrayClose(SubTray *t)
 {
-  int i;
-  Window *wins = (Window *)subSharedMemoryAlloc(subtle->trays->ndata, sizeof(Window));
+  assert(t);
 
-  for(i = 0; i < subtle->trays->ndata; i++)
-    wins[i] = TRAY(subtle->trays->data[i])->win;
+  /* Honor window preferences (see ICCCM 4.1.2.7, 4.2.8.1) */
+  if(t->flags & SUB_TRAY_CLOSE)
+    {
+      subEwmhMessage(t->win, SUB_EWMH_WM_PROTOCOLS, NoEventMask,
+        subEwmhGet(SUB_EWMH_WM_DELETE_WINDOW), CurrentTime, 0, 0, 0);
+    }
+  else
+    {
+      int focus = (subtle->windows.focus[0] == t->win); ///< Save
 
-  /* EWMH: Client list and client list stacking */
-  subEwmhSetWindows(ROOT, SUB_EWMH_SUBTLE_TRAY_LIST, wins, subtle->trays->ndata);
+      /* Kill it manually */
+      XKillClient(subtle->dpy, t->win);
 
-  XSync(subtle->dpy, False); ///< Sync all changes
+      subArrayRemove(subtle->trays, (void *)t);
+      subTrayKill(t);
+      subTrayPublish();
+      subTrayUpdate();
 
-  free(wins);
+      subScreenUpdate();
+      subScreenRender();
 
-  subSharedLogDebugSubtle("publish=tray, trays=%d\n", subtle->trays->ndata);
+      /* Update focus if necessary */
+      if(focus)
+        {
+          SubClient *c = subClientNext(0, False);
+          if(c) subClientFocus(c, True);
+        }
+    }
+
+  subSubtleLogDebugSubtle("Close\n");
 } /* }}} */
 
  /** subTrayKill {{{
@@ -242,7 +279,32 @@ subTrayKill(SubTray *t)
   if(t->name) free(t->name);
   free(t);
 
-  subSharedLogDebugSubtle("kill=tray\n");
+  subSubtleLogDebugSubtle("Kill\n");
+} /* }}} */
+
+/* All */
+
+ /** subTrayPublish {{{
+  * @brief Publish trays
+  **/
+
+void
+subTrayPublish(void)
+{
+  int i;
+  Window *wins = (Window *)subSharedMemoryAlloc(subtle->trays->ndata, sizeof(Window));
+
+  for(i = 0; i < subtle->trays->ndata; i++)
+    wins[i] = TRAY(subtle->trays->data[i])->win;
+
+  /* EWMH: Client list and client list stacking */
+  subEwmhSetWindows(ROOT, SUB_EWMH_SUBTLE_TRAY_LIST, wins, subtle->trays->ndata);
+
+  XSync(subtle->dpy, False); ///< Sync all changes
+
+  free(wins);
+
+  subSubtleLogDebugSubtle("Publish: trays=%d\n", subtle->trays->ndata);
 } /* }}} */
 
 // vim:ts=2:bs=2:sw=2:et:fdm=marker

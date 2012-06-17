@@ -3,8 +3,8 @@
   * @package subtle
   *
   * @file Header file
-  * @copyright Copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/shared/shared.h,v 2996 2011/08/09 11:56:17 unexist $
+  * @copyright Copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/shared/shared.h,v 3204 2012/05/22 21:15:06 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -38,40 +38,20 @@
 /* }}} */
 
 /* Macros {{{ */
-#define SEPARATOR "<>"                                            ///< Color separator
+#define SEPARATOR "^"                                             ///< Color separator
 #define LENGTH(a) (sizeof(a) / sizeof(a[0]))                      ///< Array length
 #define RINT(r)   printf("<%s:%d> %s: x=%d, y=%d, width=%d, height=%d\n", \
   __FILE__, __LINE__, #r, r.x, r.y, r.width, r.height);           ///< Print a XRectangle
 
-#define DEFFONT   "-*-*-medium-*-*-*-14-*-*-*-*-*-*-*"            ///< Default font
+#define DEFFONT   "-*-*-*-*-*-*-14-*-*-*-*-*-*-*"                 ///< Default font
 
 #define DATA(d)   ((SubData)d)                                    ///< Cast to SubData
 #define FONT(f)   ((SubFont *)f)                                  ///< Cast to SubFont
 #define TEXT(t)   ((SubText *)t)                                  ///< Cast to SubText
 #define ITEM(i)   ((SubTextItem *)i)                              ///< Cast to SubTextItem
-
-#define DEFAULT_LOGLEVEL \
-  (SUB_LOG_WARN|SUB_LOG_ERROR|SUB_LOG_SUBLET| \
-  SUB_LOG_DEPRECATED)                                             ///< Default loglevel
-
-#define DEBUG_LOGLEVEL \
-  (SUB_LOG_EVENTS|SUB_LOG_RUBY|SUB_LOG_XERROR| \
-  SUB_LOG_SUBTLE|SUB_LOG_SUBTLEXT|SUB_LOG_DEBUG)                  ///< Debug loglevel
 /* }}} */
 
 /* Flags {{{ */
-/* Logelevel flags */
-#define SUB_LOG_WARN        (1L << 0)                             ///< Log warning messages
-#define SUB_LOG_ERROR       (1L << 1)                             ///< Log error messages
-#define SUB_LOG_SUBLET      (1L << 2)                             ///< Log error messages
-#define SUB_LOG_DEPRECATED  (1L << 3)                             ///< Log deprecation messages
-#define SUB_LOG_EVENTS      (1L << 4)                             ///< Log event messages
-#define SUB_LOG_RUBY        (1L << 5)                             ///< Log ruby messages
-#define SUB_LOG_XERROR      (1L << 6)                             ///< Log X error messages
-#define SUB_LOG_SUBTLEXT    (1L << 7)                             ///< Log subtlext messages
-#define SUB_LOG_SUBTLE      (1L << 8)                             ///< Log subtle messages
-#define SUB_LOG_DEBUG       (1L << 9)                             ///< Log other debug messages
-
 /* View select flags */
 #define SUB_VIEW_NEXT       0L                                    ///< View next
 #define SUB_VIEW_PREV       1L                                    ///< View prev
@@ -88,6 +68,8 @@
 #define SUB_EWMH_BORDERLESS (1L << 8)                             ///< EWMH fixed flag
 #define SUB_EWMH_VISIBLE    (1L << 9)                             ///< EWMH visible flag
 #define SUB_EWMH_HIDDEN     (1L << 10)                            ///< EWMH hidden flag
+#define SUB_EWMH_HORZ       (1L << 11)                            ///< EWMH horizontal flag
+#define SUB_EWMH_VERT       (1L << 12)                            ///< EWMH vertical flag
 
 /* Match types flags */
 #define SUB_MATCH_NAME      (1L << 0)                             ///< Match SUBTLE_NAME
@@ -97,11 +79,6 @@
 #define SUB_MATCH_ROLE      (1L << 4)                             ///< Match window role
 #define SUB_MATCH_PID       (1L << 5)                             ///< Match pid
 #define SUB_MATCH_EXACT     (1L << 6)                             ///< Match exact string
-
-/* Text flags */
-#define SUB_TEXT_EMPTY      (1L << 0)                             ///< Empty text
-#define SUB_TEXT_BITMAP     (1L << 1)                             ///< Text bitmap
-#define SUB_TEXT_PIXMAP     (1L << 2)                             ///< Text pixmap
 /* }}} */
 
 /* Typedefs {{{ */
@@ -110,20 +87,6 @@ typedef union subdata_t /* {{{ */
   unsigned long num;                                              ///< Data number
   char          *string;                                          ///< Data string
 } SubData; /* }}} */
-
-typedef struct subtextitem_t /* {{{ */
-{
-  int             flags, width, height;                           ///< Text flags, width, height
-  long            color;                                          ///< Text color
-
-  union subdata_t data;                                           ///< Text data
-} SubTextItem; /* }}} */
-
-typedef struct subtext_t /* {{{ */
-{
-  struct subtextitem_t **items;                                   ///< Item text items
-  int                  flags, nitems, width;                      ///< Item flags, count, width
-} SubText; /* }}} */
 
 typedef struct subfont_t /* {{{ */
 {
@@ -142,42 +105,6 @@ typedef union submessagedata_t /* {{{ */
   short s[10];                                                    ///< MessageData short
   long  l[5];                                                     ///< MessageData long
 } SubMessageData; /* }}} */
-/* }}} */
-
-/* Log {{{ */
-/* Macros for convenience */
-#define subSharedLogError(...) \
-  subSharedLog(SUB_LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__);
-#define subSharedLogSubletError(SUBLET, ...) \
-  subSharedLog(SUB_LOG_SUBLET, SUBLET, __LINE__, __VA_ARGS__);
-#define subSharedLogWarn(...) \
-  subSharedLog(SUB_LOG_WARN, __FILE__, __LINE__, __VA_ARGS__);
-#define subSharedLogDeprecated(...) \
-  subSharedLog(SUB_LOG_DEPRECATED, __FILE__, __LINE__, __VA_ARGS__);
-
-#ifdef DEBUG
-#define subSharedLogDebugEvents(...)  \
-  subSharedLog(SUB_LOG_EVENTS, __FILE__, __LINE__, __VA_ARGS__);
-#define subSharedLogDebugRuby(...)  \
-  subSharedLog(SUB_LOG_RUBY, __FILE__, __LINE__, __VA_ARGS__);
-#define subSharedLogDebugSubtlext(...)  \
-  subSharedLog(SUB_LOG_SUBTLEXT, __FILE__, __LINE__, __VA_ARGS__);
-#define subSharedLogDebugSubtle(...)  \
-  subSharedLog(SUB_LOG_SUBTLE, __FILE__, __LINE__, __VA_ARGS__);
-#define subSharedLogDebug(...)  \
-  subSharedLog(SUB_LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__);
-#else /* DEBUG */
-#define subSharedLogDebugEvents(...)
-#define subSharedLogDebugRuby(...)
-#define subSharedLogDebugSubtlext(...)
-#define subSharedLogDebugSubtle(...)
-#define subSharedLogDebug(...)
-#endif /* DEBUG */
-
-void subSharedLogLevel(int level);                                ///< Set loglevel
-void subSharedLog(int level, const char *file,
-  int line, const char *format, ...);                             ///< Print messages
-int subSharedLogXError(Display *disp, XErrorEvent *ev);           ///< Print X error messages
 /* }}} */
 
 /* Memory {{{ */
@@ -208,20 +135,11 @@ void subSharedPropertyDelete(Display *disp, Window win,
   Atom prop);                                                     ///< Delete window property
 /* }}} */
 
-/* Text {{{ */
-SubText *subSharedTextNew(void);                                  ///< Create new text
-int subSharedTextParse(Display *disp, SubFont *f,
-  SubText *t, char *text);                                        ///< Parse text
-void subSharedTextRender(Display *disp, GC gc, SubFont *f,
-  Window win, int x, int y, long fg, long icon,
-  long bg, SubText *t);                                           ///< Render text
-int subSharedTextWidth(Display *disp, SubFont *f,
-  const char *text, int len, int *left, int *right, int center);  ///< Get text width
-void subSharedTextFree(SubText *t);                               ///< Free text
-void subSharedTextIconDraw(Display *disp, GC gc, Window win,
+/* Draw {{{ */
+void subSharedDrawIcon(Display *disp, GC gc, Window win,
   int x, int y, int width, int height, long fg, long bg,
   Pixmap pixmap, int bitmap);                                     ///< Draw icons
-void subSharedTextDraw(Display *disp, GC gc, SubFont *f,
+void subSharedDrawString(Display *disp, GC gc, SubFont *f,
   Window win, int x, int y, long fg, long bg,
   const char *text, int len);                                     ///< Draw text
 /* }}} */
@@ -236,6 +154,8 @@ unsigned long subSharedParseColor(Display *disp, char *name);     ///< Parse col
 KeySym subSharedParseKey(Display *disp, const char *key,
   unsigned int *code, unsigned int *state, int *mouse);           ///< Parse keys
 pid_t subSharedSpawn(char *cmd);                                  ///< Spawn command
+int subSharedStringWidth(Display *disp, SubFont *f,
+  const char *text, int len, int *left, int *right, int center);  ///< Get text width
 /* }}} */
 
 #ifndef SUBTLE

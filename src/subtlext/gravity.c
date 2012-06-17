@@ -2,8 +2,8 @@
   * @package subtlext
   *
   * @file Gravity functions
-  * @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtlext/gravity.c,v 2923 2011/07/06 14:20:27 unexist $
+  * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtlext/gravity.c,v 3216 2012/06/15 17:18:12 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -21,73 +21,6 @@ GravityToRect(VALUE self,
   subGeometryToRect(geometry, r); ///< Get values
 } /* }}} */
 
-/* GravityFind {{{ */
-static VALUE
-GravityFind(char *source,
-  int flags)
-{
-  int ngravities = 0;
-  char **gravities = NULL;
-  VALUE ret = Qnil;
-
-  subSubtlextConnect(NULL); ///< Implicit open connection
-
-  /* Get gravity list */
-  if((gravities = subSharedPropertyGetStrings(display, DefaultRootWindow(display),
-      XInternAtom(display, "SUBTLE_GRAVITY_LIST", False), &ngravities)))
-    {
-      int i, selid = -1;
-      XRectangle geometry = { 0 };
-      char buf[30] = { 0 };
-      VALUE klass_grav = Qnil, klass_geom = Qnil, meth = Qnil;
-      VALUE gravity = Qnil, geom = Qnil;
-      regex_t *preg = NULL;
-
-      /* Fetch data */
-      klass_grav = rb_const_get(mod, rb_intern("Gravity"));
-      klass_geom = rb_const_get(mod, rb_intern("Geometry"));
-      meth       = rb_intern("new");
-
-      /* Create if source is given */
-      if(source)
-        {
-          if(isdigit(source[0])) selid = atoi(source);
-          preg = subSharedRegexNew(source);
-        }
-
-      /* Create gravity list */
-      for(i = 0; i < ngravities; i++)
-        {
-          sscanf(gravities[i], "%hdx%hd+%hd+%hd#%s", &geometry.x, &geometry.y,
-            &geometry.width, &geometry.height, buf);
-
-          /* Check if gravity matches */
-          if(!source || (source && (selid == i || (-1 == selid &&
-              ((flags & SUB_MATCH_EXACT && 0 == strcmp(source, buf)) ||
-              (preg && !(flags & SUB_MATCH_EXACT) &&
-                subSharedRegexMatch(preg, buf)))))))
-            {
-              /* Create new gravity */
-              gravity = rb_funcall(klass_grav, meth, 1, rb_str_new2(buf));
-              geom    = rb_funcall(klass_geom, meth, 4, INT2FIX(geometry.x),
-                INT2FIX(geometry.y), INT2FIX(geometry.width),
-                INT2FIX(geometry.height));
-
-              rb_iv_set(gravity, "@id",       INT2FIX(i));
-              rb_iv_set(gravity, "@geometry", geom);
-
-              ret = subSubtlextOneOrMany(gravity, ret);
-            }
-        }
-
-      if(preg)    subSharedRegexKill(preg);
-      XFreeStringList(gravities);
-    }
-  else rb_raise(rb_eStandardError, "Failed getting gravity list");
-
-  return NIL_P(ret) ? rb_ary_new() : ret;
-} /* }}} */
-
 /* GravityFindId {{{ */
 static int
 GravityFindId(char *match,
@@ -96,14 +29,13 @@ GravityFindId(char *match,
 {
   int ret = -1, ngravities = 0;
   char **gravities = NULL;
-  regex_t *preg = NULL;
 
   assert(match);
 
   /* Find gravity id */
-  if((preg = subSharedRegexNew(match)) &&
-      (gravities = subSharedPropertyGetStrings(display, DefaultRootWindow(display),
-      XInternAtom(display, "SUBTLE_GRAVITY_LIST", False), &ngravities)))
+  if((gravities = subSharedPropertyGetStrings(display,
+      DefaultRootWindow(display), XInternAtom(display,
+      "SUBTLE_GRAVITY_LIST", False), &ngravities)))
     {
       int i;
       XRectangle geom = { 0 };
@@ -116,14 +48,13 @@ GravityFindId(char *match,
 
           /* Check id and name */
           if((isdigit(match[0]) && atoi(match) == i) ||
-              (!isdigit(match[0]) && subSharedRegexMatch(preg, buf)))
+              (!isdigit(match[0]) && 0 == strcmp(match, buf)))
             {
-              subSharedLogDebugSubtlext("Found: type=gravity, name=%s, id=%d\n", buf, i);
-
               if(geometry) *geometry = geom;
               if(name)
                 {
-                  *name = (char *)subSharedMemoryAlloc(strlen(buf) + 1, sizeof(char));
+                  *name = (char *)subSharedMemoryAlloc(strlen(buf) + 1,
+                    sizeof(char));
                   strncpy(*name, buf, strlen(buf));
                 }
 
@@ -132,49 +63,16 @@ GravityFindId(char *match,
            }
        }
     }
-  else subSharedLogDebugSubtlext("Failed finding gravity `%s'\n", name);
 
-  if(preg)       subSharedRegexKill(preg);
   if(gravities) XFreeStringList(gravities);
 
   return ret;
 } /* }}} */
 
-/* Singleton */
-
-/* subGravitySingFind {{{ */
-/*
- * call-seq: find(value) -> Subtlext::Gravity, Array or nil
- *           [value]     -> Subtlext::Gravity, Array or nil
- *
- * Find Gravity by a given <i>value</i> which can be of following type:
- *
- * [Fixnum] Array index of the <code>SUBTLE_GRAVITY_LIST</code> property list.
- * [String] Regexp match against name of Gravities, returns a Gravity on single
- *          match or an Array on multiple matches.
- * [Symbol] Either <i>:all</i> for an array of all Views or any string for an
- *          <b>exact</b> match.
- *
- *  Subtlext::Gravity.find(1)
- *  => #<Subtlext::Gravity:xxx>
- *
- *  Subtlext::Gravity.find("subtle")
- *  => #<Subtlext::Gravity:xxx>
- *
- *  Subtlext::Gravity[".*"]
- *  => [#<Subtlext::Gravity:xxx>, #<Subtlext::Gravity:xxx>]
- *
- *  Subtlext::Gravity["subtle"]
- *  => nil
- *
- *  Subtlext::Gravity[:center]
- *  => #<Subtlext::Gravity:xxx>
-
- */
-
-VALUE
-subGravitySingFind(VALUE self,
-  VALUE value)
+/* GravityFind {{{ */
+static VALUE
+GravityFind(VALUE value,
+  int first)
 {
   int flags = 0;
   VALUE parsed = Qnil;
@@ -188,35 +86,105 @@ subGravitySingFind(VALUE self,
     {
       case T_SYMBOL:
         if(CHAR2SYM("all") == parsed)
-          return subGravitySingAll(Qnil);
+          return subGravitySingList(Qnil);
         break;
       case T_OBJECT:
-        if(rb_obj_is_instance_of(value, rb_const_get(mod, rb_intern("Gravity"))))
+        if(rb_obj_is_instance_of(value, rb_const_get(mod,
+            rb_intern("Gravity"))))
           return parsed;
     }
 
-  return GravityFind(buf, flags);
+  return subSubtlextFindObjectsGeometry("SUBTLE_GRAVITY_LIST",
+    "Gravity", buf, flags, first);
 } /* }}} */
 
-/* subGravitySingAll {{{ */
+/* Singleton */
+
+/* subGravitySingFind {{{ */
 /*
- * Get an array of all Gravites based on the <code>SUBTLE_GRAVITIY_LIST</code>
- * property list.
+ * call-seq: find(value) -> Array
+ *           [value]     -> Array
  *
- *  Subtlext::Gravity.all
+ * Find Gravity by a given <i>value</i> which can be of following type:
+ *
+ * [Fixnum] Array index of the <code>SUBTLE_GRAVITY_LIST</code> property list.
+ * [String] Regexp match against name of Gravities, returns a Gravity on single
+ *          match or an Array on multiple matches.
+ * [Symbol] Either <i>:all</i> for an array of all Views or any string for an
+ *          <b>exact</b> match.
+ *
+ *  Subtlext::Gravity.find(1)
+ *  => [#<Subtlext::Gravity:xxx>]
+ *
+ *  Subtlext::Gravity.find("subtle")
+ *  => [#<Subtlext::Gravity:xxx>]
+ *
+ *  Subtlext::Gravity[".*"]
  *  => [#<Subtlext::Gravity:xxx>, #<Subtlext::Gravity:xxx>]
  *
- *  Subtlext::Gravity.all
+ *  Subtlext::Gravity["subtle"]
+ *  => []
+ *
+ *  Subtlext::Gravity[:center]
+ *  => [#<Subtlext::Gravity:xxx>]
+
+ */
+
+VALUE
+subGravitySingFind(VALUE self,
+  VALUE value)
+{
+  return GravityFind(value, False);
+} /* }}} */
+
+/* subGravitySingFirst {{{ */
+/*
+ * call-seq: first(value) -> Subtlext::Gravity or nil
+ *
+ * Find first Gravity by a given <i>value</i> which can be of following type:
+ *
+ * [Fixnum] Array index of the <code>SUBTLE_GRAVITY_LIST</code> property list.
+ * [String] Regexp match against name of Gravities, returns a Gravity on single
+ *          match or an Array on multiple matches.
+ * [Symbol] Either <i>:all</i> for an array of all Views or any string for an
+ *          <b>exact</b> match.
+ *
+ *  Subtlext::Gravity.first(1)
+ *  => #<Subtlext::Gravity:xxx>
+ *
+ *  Subtlext::Gravity.first("subtle")
+ *  => #<Subtlext::Gravity:xxx>
+ */
+
+VALUE
+subGravitySingFirst(VALUE self,
+  VALUE value)
+{
+  return GravityFind(value, True);
+} /* }}} */
+
+/* subGravitySingList {{{ */
+/*
+ * call-seq: list -> Array
+ *
+ * Get an array of all Gravities based on the <code>SUBTLE_GRAVITIY_LIST</code>
+ * property list.
+ *
+ *  Subtlext::Gravity.list
+ *  => [#<Subtlext::Gravity:xxx>, #<Subtlext::Gravity:xxx>]
+ *
+ *  Subtlext::Gravity.list
  *  => []
  */
 
 VALUE
-subGravitySingAll(VALUE self)
+subGravitySingList(VALUE self)
 {
-  return GravityFind(NULL, 0);
+  return subSubtlextFindObjectsGeometry("SUBTLE_GRAVITY_LIST",
+    "Gravity", NULL, 0, False);
 } /* }}} */
 
-/* Class */
+/* Helper */
 
 /* subGravityInstantiate {{{ */
 VALUE
@@ -231,15 +199,22 @@ subGravityInstantiate(char *name)
   return gravity;
 } /* }}} */
 
+/* Class */
+
 /* subGravityInit {{{ */
 /*
- * call-seq: new(name, gravity) -> Subtlext::Gravity
+ * call-seq: new(name, x, y, width, height) -> Subtlext::Gravity
+ *           new(name, array)               -> Subtlext::Gravity
+ *           new(name, hash)                -> Subtlext::Gravity
+ *           new(name, string)              -> Subtlext::Gravity
+ *           new(name, geometry)            -> Subtlext::Gravity
  *
- * Create a new Gravity object locally <b>without</b> calling #save automatically.
+ * Create a new Gravity object locally <b>without</b> calling
+ * #save automatically.
  *
  * The Gravity <b>won't</b> be useable until #save is called.
  *
- *  gravity = Subtlext::Gravity.new("top")
+ *  gravity = Subtlext::Gravity.new("center", 0, 0, 100, 100)
  *  => #<Subtlext::Gravity:xxx>
  */
 
@@ -248,35 +223,46 @@ subGravityInit(int argc,
   VALUE *argv,
   VALUE self)
 {
-  VALUE data[2] = { Qnil };
+  VALUE data[5] = { Qnil }, geom = Qnil;
 
-  rb_scan_args(argc, argv, "02", &data[0], &data[1]);
+  rb_scan_args(argc, argv, "14", &data[0], &data[1], &data[2],
+    &data[3], &data[4]);
 
+  /* Check gravity name */
   if(T_STRING != rb_type(data[0]))
     rb_raise(rb_eArgError, "Invalid value type");
+
+  /* Delegate arguments */
+  if(RTEST(data[1]))
+    {
+      VALUE klass = Qnil;
+
+      klass = rb_const_get(mod, rb_intern("Geometry"));
+      geom  = rb_funcall2(klass, rb_intern("new"), argc - 1, argv + 1);
+    }
 
   /* Init object */
   rb_iv_set(self, "@id",       Qnil);
   rb_iv_set(self, "@name",     data[0]);
-  rb_iv_set(self, "@geometry", data[1]);
+  rb_iv_set(self, "@geometry", geom);
 
   subSubtlextConnect(NULL); ///< Implicit open connection
 
   return self;
 } /* }}} */
 
-/* subGravityUpdate {{{ */
+/* subGravitySave {{{ */
 /*
- * call-seq: update -> nil
+ * call-seq: save -> Subtlext::Gravity
  *
- * Update Gravity properties based on <b>required</b> Gravity index.
+ * Save new Gravity object.
  *
- *  gravity.update
+ *  gravity.save
  *  => nil
  */
 
 VALUE
-subGravityUpdate(VALUE self)
+subGravitySave(VALUE self)
 {
   int id = -1;
   XRectangle geom = { 0 };
@@ -333,9 +319,10 @@ subGravityUpdate(VALUE self)
       XFreeStringList(gravities);
     }
 
+  /* Set properties */
   rb_iv_set(self, "@id", INT2FIX(id));
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* subGravityClients {{{ */
@@ -402,6 +389,46 @@ subGravityClients(VALUE self)
   return array;
 } /* }}} */
 
+/* subGravityGeometryFor {{{ */
+/*
+ * call-seq: geometry_for(screen) -> Subtlext::Geometry
+ *
+ * Get the Gravity Geometry for given Screen in pixel values.
+ *
+ *  gravity.geometry_for(screen)
+ *  => #<Subtlext::Geometry:xxx>
+ */
+
+VALUE
+subGravityGeometryFor(VALUE self,
+  VALUE value)
+{
+  VALUE geom = Qnil;
+
+  /* Check object instance */
+  if(rb_obj_is_instance_of(value, rb_const_get(mod, rb_intern("Screen"))))
+    {
+      XRectangle real = { 0 }, geom_grav = { 0 }, geom_screen = { 0 };
+
+      GravityToRect(self,  &geom_grav);
+      GravityToRect(value, &geom_screen);
+
+      /* Calculate real values for screen */
+      real.width  = geom_screen.width * geom_grav.width / 100;
+      real.height = geom_screen.height * geom_grav.height / 100;
+      real.x      = geom_screen.x +
+        (geom_screen.width - real.width) * geom_grav.x / 100;
+      real.y      = geom_screen.y +
+        (geom_screen.height - real.height) * geom_grav.y / 100;
+
+      geom = subGeometryInstantiate(real.x, real.y, real.width, real.height);
+    }
+  else rb_raise(rb_eArgError, "Unexpected value-type `%s'",
+    rb_obj_classname(value));
+
+  return geom;
+} /* }}} */
+
 /* subGravityGeometryReader {{{ */
 /*
  * call-seq: geometry -> Subtlext::Geometry
@@ -438,83 +465,99 @@ subGravityGeometryReader(VALUE self)
 
 /* subGravityGeometryWriter {{{ */
 /*
- * call-seq: geometry=(geometry) -> nil
+ * call-seq: geometry=(x, y, width, height) -> Fixnum
+ *           geometry=(array)               -> Array
+ *           geometry=(hash)                -> Hash
+ *           geometry=(string)              -> String
+ *           geometry=(geometry)            -> Subtlext::Geometry
  *
  * Set the Gravity Geometry
  *
- *  gravity.geometry=geometry
+ *  gravity.geometry = 0, 0, 100, 100
+ *  => 0
+ *
+ *  gravity.geometry = [ 0, 0, 100, 100 ]
+ *  => [ 0, 0, 100, 100 ]
+ *
+ *  gravity.geometry = { x: 0, y: 0, width: 100, height: 100 }
+ *  => { x: 0, y: 0, width: 100, height: 100 }
+ *
+ *  gravity.geometry = "0x0+100+100"
+ *  => "0x0+100+100"
+ *
+ *  gravity.geometry = Subtlext::Geometry(0, 0, 100, 100)
  *  => #<Subtlext::Geometry:xxx>
  */
 
 VALUE
-subGravityGeometryWriter(VALUE self,
-  VALUE value)
+subGravityGeometryWriter(int argc,
+  VALUE *argv,
+  VALUE self)
 {
-  /* Check value type */
-  if(T_OBJECT == rb_type(value))
-    {
-      VALUE klass = rb_const_get(mod, rb_intern("Geometry"));
+  VALUE klass = Qnil, geom = Qnil;
 
-      /* Check object instance */
-      if(rb_obj_is_instance_of(value, klass))
-        {
-          rb_iv_set(self, "@geometry", value);
-        }
-      else rb_raise(rb_eArgError, "Unexpected value-type `%s'",
-        rb_obj_classname(value));
-    }
+  /* Check ruby object */
+  rb_check_frozen(self);
+  subSubtlextConnect(NULL); ///< Implicit open connection
 
-  return Qnil;
+  /* Delegate arguments */
+  klass = rb_const_get(mod, rb_intern("Geometry"));
+  geom  = rb_funcall2(klass, rb_intern("new"), argc, argv);
+
+  /* Update geometry */
+  if(RTEST(geom)) rb_iv_set(self, "@geometry", geom);
+
+  return geom;
 } /* }}} */
 
-/* subGravityGeometryFor {{{ */
+/* subGravityTilingWriter {{{ */
 /*
- * call-seq: geometry_for(screen) -> nil
+ * call-seq: tiling=(value) -> Symbol or nil
  *
- * Get the Gravity Geometry for given Screen in pixel values.
+ * Set the tiling mode for gravity
  *
- *  gravity.geometry_for(screen)
- *  => #<Subtlext::Geometry:xxx>
+ *  gravity.tiling = :vert
+ *  => :vert
+ *
+ *  gravity.tiling = :horz
+ *  => :horz
+ *
+ *  gravity.tiling = nil
+ *  => nil
  */
 
 VALUE
-subGravityGeometryFor(VALUE self,
+subGravityTilingWriter(VALUE self,
   VALUE value)
 {
-  VALUE ary = rb_ary_new2(4);
+  int flags = 0;
+  VALUE id = Qnil;
+  SubMessageData data = { { 0, 0, 0, 0, 0 } };
+
+  /* Check ruby object */
+  rb_check_frozen(self);
+  GET_ATTR(self, "@id", id);
 
   /* Check value type */
-  if(T_OBJECT == rb_type(value))
+  switch(rb_type(value))
     {
-      VALUE klass = rb_const_get(mod, rb_intern("Screen"));
-
-      /* Check object instance */
-      if(rb_obj_is_instance_of(value, klass))
-        {
-          XRectangle real = { 0 }, geom_grav = { 0 }, geom_screen = { 0 };
-
-          GravityToRect(self,  &geom_grav);
-          GravityToRect(value, &geom_screen);
-
-          /* Calculate real values for screen */
-          real.width  = geom_screen.width * geom_grav.width / 100;
-          real.height = geom_screen.height * geom_grav.height / 100;
-          real.x      = geom_screen.x +
-            (geom_screen.width - real.width) * geom_grav.x / 100;
-          real.y      = geom_screen.y +
-            (geom_screen.height - real.height) * geom_grav.y / 100;
-
-          /* Fill into result array */
-          rb_ary_push(ary, INT2FIX(real.x));
-          rb_ary_push(ary, INT2FIX(real.y));
-          rb_ary_push(ary, INT2FIX(real.width));
-          rb_ary_push(ary, INT2FIX(real.height));
-        }
-      else rb_raise(rb_eArgError, "Unexpected value-type `%s'",
+      case T_SYMBOL:
+        if(CHAR2SYM("horz")      == value) flags = SUB_EWMH_HORZ;
+        else if(CHAR2SYM("vert") == value) flags = SUB_EWMH_VERT;
+        break;
+      case T_NIL: break;
+      default: rb_raise(rb_eArgError, "Unexpected value-type `%s'",
         rb_obj_classname(value));
     }
 
-  return ary;
+  /* Assemble message */
+  data.l[0] = FIX2INT(id);
+  data.l[1] = flags;
+
+  subSharedMessage(display, DefaultRootWindow(display),
+    "SUBTLE_GRAVITY_FLAGS", data, 32, True);
+
+  return value;
 } /* }}} */
 
 /* subGravityToString {{{ */

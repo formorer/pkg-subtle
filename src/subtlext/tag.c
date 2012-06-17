@@ -2,8 +2,8 @@
   * @package subtle
   *
   * @file subtle ruby extension
-  * @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtlext/tag.c,v 2987 2011/08/07 14:13:04 unexist $
+  * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtlext/tag.c,v 3216 2012/06/15 17:18:12 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -11,40 +11,10 @@
 
 #include "subtlext.h"
 
-/* Singleton */
-
-/* subTagSingFind {{{ */
-/*
- * call-seq: find(value) -> Subtlext::Tag, Array or nil
- *           [value]     -> Subtlext::Tag, Array or nil
- *
- * Find Tag by a given <i>value</i> which can be of following type:
- *
- * [Fixnum] Array index of the <code>SUBTLE_TAG_LIST</code> property list.
- * [String] Regexp match against name of Tags, returns a Tag on single
- *          match or an Array on multiple matches.
- * [Symbol] Either <i>:all</i> for an array of all Tags or any string for
- *          an <b>exact</b> match.
- *
- *  Subtlext::Tag.find(1)
- *  => #<Subtlext::Tag:xxx>
- *
- *  Subtlext::Tag.find("subtle")
- *  => #<Subtlext::Tag:xxx>
- *
- *  Subtlext::Tag[".*"]
- *  => [#<Subtlext::Tag:xxx>, #<Subtlext::Tag:xxx>]
- *
- *  Subtlext::Tag["subtle"]
- *  => nil
- *
- *  Subtlext::Tag[:terms]
- *  => #<Subtlext::Tag:xxx>
- */
-
-VALUE
-subTagSingFind(VALUE self,
-  VALUE value)
+/* TagFind {{{ */
+static VALUE
+TagFind(VALUE value,
+  int first)
 {
   int flags = 0;
   VALUE parsed = Qnil;
@@ -60,14 +30,78 @@ subTagSingFind(VALUE self,
         if(CHAR2SYM("visible") == parsed)
           return subTagSingVisible(Qnil);
         else if(CHAR2SYM("all") == parsed)
-          return subTagSingAll(Qnil);
+          return subTagSingList(Qnil);
         break;
       case T_OBJECT:
         if(rb_obj_is_instance_of(value, rb_const_get(mod, rb_intern("Tag"))))
           return parsed;
     }
 
-  return subSubtlextFindObjects("SUBTLE_TAG_LIST", "Tag", buf, flags);
+  return subSubtlextFindObjects("SUBTLE_TAG_LIST", "Tag", buf, flags, first);
+} /* }}} */
+
+/* Singleton */
+
+/* subTagSingFind {{{ */
+/*
+ * call-seq: find(value) -> Array
+ *           [value]     -> Array
+ *
+ * Find Tag by a given <i>value</i> which can be of following type:
+ *
+ * [Fixnum] Array index of the <code>SUBTLE_TAG_LIST</code> property list.
+ * [String] Regexp match against name of Tags, returns a Tag on single
+ *          match or an Array on multiple matches.
+ * [Symbol] Either <i>:all</i> for an array of all Tags or any string for
+ *          an <b>exact</b> match.
+ *
+ *  Subtlext::Tag.find(1)
+ *  => [#<Subtlext::Tag:xxx>]
+ *
+ *  Subtlext::Tag.find("subtle")
+ *  => [#<Subtlext::Tag:xxx>]
+ *
+ *  Subtlext::Tag[".*"]
+ *  => [#<Subtlext::Tag:xxx>, #<Subtlext::Tag:xxx>]
+ *
+ *  Subtlext::Tag["subtle"]
+ *  => []
+ *
+ *  Subtlext::Tag[:terms]
+ *  => [#<Subtlext::Tag:xxx>]
+ */
+
+VALUE
+subTagSingFind(VALUE self,
+  VALUE value)
+{
+  return TagFind(value, False);
+} /* }}} */
+
+/* subTagSingFirst {{{ */
+/*
+ * call-seq: first(value) -> Subtlext::Tag or nil
+ *
+ * Find first Tag by a given <i>value</i> which can be of following type:
+ *
+ * [Fixnum] Array index of the <code>SUBTLE_TAG_LIST</code> property list.
+ * [String] Regexp match against name of Tags, returns a Tag on single
+ *          match or an Array on multiple matches.
+ * [Symbol] Either <i>:all</i> for an array of all Tags or any string for
+ *          an <b>exact</b> match.
+ *
+ *  Subtlext::Tag.first(1)
+ *  => #<Subtlext::Tag:xxx>
+ *
+ *  Subtlext::Tag.first("subtle")
+ *  => #<Subtlext::Tag:xxx>
+ */
+
+VALUE
+subTagSingFirst(VALUE self,
+  VALUE value)
+{
+  return TagFind(value, True);
 } /* }}} */
 
 /* subTagSingVisible {{{ */
@@ -125,22 +159,22 @@ subTagSingVisible(VALUE self)
   return array;
 } /* }}} */
 
-/* subTagSingAll {{{ */
+/* subTagSingList {{{ */
 /*
- * call-seq: all -> Array
+ * call-seq: list -> Array
  *
  * Get an array of all Tags based on the <code>SUBTLE_TAG_LIST</code>
  * property list.
  *
- *  Subtlext::Tag.all
+ *  Subtlext::Tag.list
  *  => [#<Subtlext::Tag:xxx>, #<Subtlext::Tag:xxx>]
  *
- *  Subtlext::Tag.all
+ *  Subtlext::Tag.list
  *  => []
  */
 
 VALUE
-subTagSingAll(VALUE self)
+subTagSingList(VALUE self)
 {
   int i, ntags = 0;
   char **tags = NULL;
@@ -171,7 +205,7 @@ subTagSingAll(VALUE self)
   return array;
 } /* }}} */
 
-/* Class */
+/* Helper */
 
 /* subTagInstantiate {{{ */
 VALUE
@@ -185,6 +219,8 @@ subTagInstantiate(char *name)
 
   return tag;
 } /* }}} */
+
+/* Class */
 
 /* subTagInit {{{ */
 /*
@@ -215,18 +251,18 @@ subTagInit(VALUE self,
   return self;
 } /* }}} */
 
-/* subTagUpdate {{{ */
+/* subTagSave {{{ */
 /*
- * call-seq: update -> nil
+ * call-seq: save -> Subtlext::Tag
  *
- * Update Tag properties based on Tag index.
+ * Save new Tag object.
  *
  *  tag.update
- *  => nil
+ *  => #<Subtlext::Tag:xxx>
  */
 
 VALUE
-subTagUpdate(VALUE self)
+subTagSave(VALUE self)
 {
   int id = -1;
   VALUE name = Qnil;
@@ -258,17 +294,20 @@ subTagUpdate(VALUE self)
       char **tags = NULL;
 
       /* Get names of tags */
-      tags = subSharedPropertyGetStrings(display, DefaultRootWindow(display),
-        XInternAtom(display, "SUBTLE_TAG_LIST", False), &ntags);
+      if((tags = subSharedPropertyGetStrings(display, DefaultRootWindow(display),
+          XInternAtom(display, "SUBTLE_TAG_LIST", False), &ntags)))
+        {
 
-      id = ntags; ///< New id should be last
+          id = ntags; ///< New id should be last
 
-      if(tags) XFreeStringList(tags);
+          XFreeStringList(tags);
+        }
     }
 
+  /* Set properties */
   rb_iv_set(self, "@id", INT2FIX(id));
 
-  return Qnil;
+  return self;
 } /* }}} */
 
 /* subTagClients {{{ */

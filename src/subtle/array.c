@@ -3,8 +3,8 @@
   * @package subtle
   *
   * @file Array functions
-  * @copyright 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtle/array.c,v 2962 2011/07/30 19:29:13 unexist $
+  * @copyright 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtle/array.c,v 3168 2012/01/03 16:02:50 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.

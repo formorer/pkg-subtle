@@ -1,6 +1,7 @@
+# -*- encoding: utf-8 -*-
 #
-# Author::  Christoph Kappel <unexist@dorfelite.net>
-# Version:: $Id: data/subtle.rb,v 2978 2011/08/02 11:16:25 unexist $
+# Author::  Christoph Kappel <unexist@subforge.org>
+# Version:: $Id: data/subtle.rb,v 3182 2012/02/04 16:39:33 unexist $
 # License:: GNU GPLv2
 #
 # = Subtle default configuration
@@ -19,30 +20,32 @@
 #
 
 # Window move/resize steps in pixel per keypress
-set :step, 5
+set :increase_step, 5
 
 # Window screen border snapping
-set :snap, 10
+set :border_snap, 10
 
 # Default starting gravity for windows. Comment out to use gravity of
 # currently active client
-set :gravity, :center
+set :default_gravity, :center
 
-# Make transient windows urgent
-set :urgent, false
+# Make dialog windows urgent and draw focus
+set :urgent_dialogs, false
 
 # Honor resize size hints globally
-set :resize, false
+set :honor_size_hints, false
 
-# Enable gravity tiling
-set :tiling, false
+# Enable gravity tiling for all gravities
+set :gravity_tiling, false
 
-# Font string either take from e.g. xfontsel or use xft
-set :font, "-*-*-medium-*-*-*-14-*-*-*-*-*-*-*"
-#set :font, "xft:sans-8"
+# Enable click-to-focus focus model
+set :click_to_focus, false
 
-# Separator between sublets
-set :separator, "|"
+# Skip pointer movement on e.g. gravity change
+set :skip_pointer_warp, false
+
+# Skip pointer movement to urgent windows
+set :skip_urgent_warp, false
 
 # Set the WM_NAME of subtle (Java quirk)
 # set :wmname, "LG3D"
@@ -111,6 +114,15 @@ end
 # If no background color is given no color will be set. This will ensure a
 # custom background pixmap won't be overwritten.
 #
+# Following properties are available for most the styles:
+#
+# [*foreground*] Foreground text color
+# [*background*] Background color
+# [*margin*]     Outer spacing
+# [*border*]     Border color and size
+# [*padding*]    Inner spacing
+# [*font*]       Font string (xftontsel or xft)
+#
 # === Link
 #
 # http://subforge.org/projects/subtle/wiki/Styles
@@ -118,12 +130,16 @@ end
 # Style for all style elements
 style :all do
   background  "#202020"
+  icon        "#757575"
   border      "#303030", 0
   padding     0, 3
+  font        "-*-*-*-*-*-*-14-*-*-*-*-*-*-*"
+  #font        "xft:sans-8"
 end
 
-# Style for the views
+# Style for the all views
 style :views do
+  foreground  "#757575"
 
   # Style for the active views
   style :focus do
@@ -139,11 +155,6 @@ style :views do
   style :occupied do
     foreground  "#b8b8b8"
   end
-
-  # Style for unoccupied views (views without clients)
-  style :unoccupied do
-    foreground  "#757575"
-  end
 end
 
 # Style for sublets
@@ -154,6 +165,7 @@ end
 # Style for separator
 style :separator do
   foreground  "#757575"
+  separator   "|"
 end
 
 # Style for focus window title
@@ -163,10 +175,10 @@ end
 
 # Style for active/inactive windows
 style :clients do
-  active      "#303030", 2
-  inactive    "#202020", 2
-  margin      0
-  width       50
+  active    "#303030", 2
+  inactive  "#202020", 2
+  margin    0
+  width     50
 end
 
 # Style for subtle
@@ -228,7 +240,7 @@ gravity :center33,       [  33,  33,  33,  33 ]
 # Right
 gravity :right,          [  50,   0,  50, 100 ]
 gravity :right66,        [  34,   0,  66, 100 ]
-gravity :right33,        [  67,  50,  33, 100 ]
+gravity :right33,        [  67,   0,  33, 100 ]
 
 # Bottom left
 gravity :bottom_left,    [   0,  50,  50,  50 ]
@@ -287,19 +299,22 @@ gravity :gimp_dock,      [  90,   0,  10, 100 ]
 #
 # ==== Mouse buttons
 #
-# [*B1*] = Button1 (Left mouse button)
-# [*B2*] = Button2 (Middle mouse button)
-# [*B3*] = Button3 (Right mouse button)
-# [*B4*] = Button4 (Mouse wheel up)
-# [*B5*] = Button5 (Mouse wheel down)
+# [*B1*]  = Button1 (Left mouse button)
+# [*B2*]  = Button2 (Middle mouse button)
+# [*B3*]  = Button3 (Right mouse button)
+# [*B4*]  = Button4 (Mouse wheel up)
+# [*B5*]  = Button5 (Mouse wheel down)
+# [*...*]
+# [*B20*] = Button20 (Are you sure that this is a mouse and not a keyboard?)
 #
 # ==== Modifiers
 #
-# [*A*] = Alt key
+# [*A*] = Alt key (Mod1)
 # [*C*] = Control key
-# [*M*] = Meta key
+# [*M*] = Meta key (Mod3)
 # [*S*] = Shift key
-# [*W*] = Super (Windows) key
+# [*W*] = Super/Windows key (Mod4)
+# [*G*] = Alt Gr (Mod5)
 #
 # === Action
 #
@@ -531,15 +546,23 @@ end
 #                Example: position [ 10, 10 ]
 #                Link:    http://subforge.org/projects/subtle/wiki/Tagging#Position
 #
-# [*resize*]     This property enables the float mode for tagged clients.
+# [*resize*]     This property enables the float mode for tagged clients. When set,
+#                subtle honors size hints, that define various size constraints like
+#                sizes for columns and rows of a terminal.
 #
 #                Example: resize true
 #                Links:   http://subforge.org/projects/subtle/wiki/Tagging#Resize
 #                         http://subforge.org/projects/subtle/wiki/Clients#Resize
 #
-# [*stick*]      This property enables the float mode for tagged clients.
+# [*stick*]      This property enables the stick mode for tagged clients. When set,
+#                clients are visible on all views, even when they don't have matching
+#                tags. On multihead, sticky clients keep the screen they are assigned
+#                on.
+#
+#                Supported values are either true or a number to specify a screen.
 #
 #                Example: stick true
+#                         stick 1
 #                Links:   http://subforge.org/projects/subtle/wiki/Tagging#Stick
 #                         http://subforge.org/projects/subtle/wiki/Clients#Stick
 #
@@ -561,13 +584,15 @@ end
 #                Example: type :desktop
 #                Link:    http://subforge.org/projects/subtle/wiki/Tagging#Type
 #
-# [*urgent*]     This property enables the urgent mode for tagged clients.
+# [*urgent*]     This property enables the urgent mode for tagged clients. When set,
+#                subtle automatically sets this client to urgent.
 #
-#                Example: stick true
+#                Example: urgent true
 #                Links:   http://subforge.org/projects/subtle/wiki/Tagging#Stick
 #                         http://subforge.org/projects/subtle/wiki/Clients#Urgent
 #
-# [*zaphod*]     This property enables the zaphod mode for tagged clients.
+# [*zaphod*]     This property enables the zaphod mode for tagged clients. When set,
+#                the client spans across all connected screens.
 #
 #                Example: zaphod true
 #                Links:   http://subforge.org/projects/subtle/wiki/Tagging#Zaphod
@@ -629,6 +654,10 @@ end
 tag "gimp_dock" do
   match   :role => "gimp-dock"
   gravity :gimp_dock
+end
+
+tag "gimp_scum" do
+  match role: "gimp-.*|screenshot"
 end
 
 #

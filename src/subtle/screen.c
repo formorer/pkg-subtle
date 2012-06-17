@@ -3,8 +3,8 @@
   * @package subtle
   *
   * @file Display functions
-  * @copyright (c) 2005-2011 Christoph Kappel <unexist@dorfelite.net>
-  * @version $Id: src/subtle/screen.c,v 2982 2011/08/07 14:06:41 unexist $
+  * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
+  * @version $Id: src/subtle/screen.c,v 3201 2012/04/12 14:01:20 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -61,7 +61,7 @@ ScreenPublish(void)
 
   XSync(subtle->dpy, False); ///< Sync all changes
 
-  subSharedLogDebugSubtle("publish=screen, screens=%d\n",
+  subSubtleLogDebugSubtle("Publish: screens=%d\n",
     subtle->screens->ndata);
 } /* }}} */
 
@@ -74,13 +74,7 @@ ScreenClear(SubScreen *s,
   XSetForeground(subtle->dpy, subtle->gcs.draw, col);
   XFillRectangle(subtle->dpy, s->drawable, subtle->gcs.draw,
     0, 0, s->base.width, subtle->ph);
-} /* }}} */
 
-/* ScreenCopy {{{ */
-static void
-ScreenCopy(SubScreen *s,
-  Window panel)
-{
    /* Draw stipple on panels */
   if(s->flags & SUB_SCREEN_STIPPLE)
     {
@@ -92,10 +86,6 @@ ScreenCopy(SubScreen *s,
       XFillRectangle(subtle->dpy, s->drawable, subtle->gcs.stipple,
         0, 0, s->base.width, subtle->ph);
     }
-
-  /* Swap buffer */
-  XCopyArea(subtle->dpy, s->drawable, panel, subtle->gcs.draw,
-    0, 0, s->base.width, subtle->ph, 0, 0);
 } /* }}} */
 
 /* Public */
@@ -175,7 +165,7 @@ subScreenInit(void)
   ScreenPublish();
   subScreenPublish();
 
-  subSharedLogDebugSubtle("init=screen\n");
+  subSubtleLogDebugSubtle("init=screen\n");
 } /* }}} */
 
  /** subScreenNew {{{
@@ -205,7 +195,7 @@ subScreenNew(int x,
   s->geom.width  = width;
   s->geom.height = height;
   s->base        = s->geom; ///< Backup size
-  s->vid         = subtle->screens->ndata; ///< Init
+  s->viewid      = subtle->screens->ndata; ///< Init
 
   /* Create panel windows */
   sattrs.event_mask        = ButtonPressMask|EnterWindowMask|
@@ -222,7 +212,7 @@ subScreenNew(int x,
   XSaveContext(subtle->dpy, s->panel1, SCREENID, (void *)s);
   XSaveContext(subtle->dpy, s->panel2, SCREENID, (void *)s);
 
-  subSharedLogDebugSubtle("new=screen, x=%d, y=%d, width=%u, height=%u\n",
+  subSubtleLogDebugSubtle("New: x=%d, y=%d, width=%u, height=%u\n",
     s->geom.x, s->geom.y, s->geom.width, s->geom.height);
 
   return s;
@@ -260,6 +250,8 @@ subScreenFind(int x,
         }
     }
 
+  subSubtleLogDebugSubtle("Find\n");
+
   return ret;
 } /* }}} */
 
@@ -293,6 +285,8 @@ subScreenCurrent(int *sid)
       ret = subScreenFind(rx, ry, sid);
     }
 
+  subSubtleLogDebugSubtle("Current\n");
+
   return ret;
 } /* }}} */
 
@@ -307,12 +301,12 @@ subScreenConfigure(void)
   SubScreen *s = NULL;
   SubView *v = NULL;
 
-  /* Reset visible tags, views and avaiclients */
+  /* Reset visible tags, views and available clients */
   subtle->visible_tags  = 0;
   subtle->visible_views = 0;
   subtle->client_tags   = 0;
 
-  /* Either check each client or just get visibles */
+  /* Either check each client or just get visible clients */
   if(0 < subtle->clients->ndata)
     {
       int j;
@@ -321,35 +315,41 @@ subScreenConfigure(void)
       for(i = 0; i < subtle->clients->ndata; i++)
         {
           SubClient *c = CLIENT(subtle->clients->data[i]);
-          int gravity = 0, screen = 0, view = 0, visible = 0;
+          int gravityid = 0, screenid = 0, viewid = 0, visible = 0;
 
           /* Ignore dead or just iconified clients */
           if(c->flags & SUB_CLIENT_DEAD) continue;
 
-          /* Set client tags to ease lookups */
+          /* Set available client tags to ease lookups */
           subtle->client_tags |= c->tags;
 
-          /* Check views of each screen */
+          /* Check view of each screen */
           for(j = 0; j < subtle->screens->ndata; j++)
             {
               s = SCREEN(subtle->screens->data[j]);
-              v = VIEW(subtle->views->data[s->vid]);
+              v = VIEW(subtle->views->data[s->viewid]);
 
               /* Set visible tags and views to ease lookups */
               subtle->visible_tags  |= v->tags;
-              subtle->visible_views |= (1L << (s->vid + 1));
+              subtle->visible_views |= (1L << (s->viewid + 1));
 
               /* Find visible clients */
-              if(VISIBLE(v->tags, c))
+              if(VISIBLETAGS(c, v->tags))
                 {
-                  gravity = c->gravities[s->vid];
-                  view    = s->vid;
-                  screen  = j;
-                  visible++;
-
-                  /* Keep stick screen */
+                  /* Keep screen when sticky */
                   if(c->flags & SUB_CLIENT_MODE_STICK)
-                    screen = c->screen;
+                    {
+                      /* Keep gravity from sticky screen/view and not the one
+                       * of the current screen/view in loop */
+                      s = SCREEN(subtle->screens->data[c->screenid]);
+
+                      screenid = c->screenid;
+                    }
+                  else screenid = j;
+
+                  viewid    = s->viewid;
+                  gravityid = c->gravities[s->viewid];
+                  visible++;
                 }
             }
 
@@ -357,19 +357,21 @@ subScreenConfigure(void)
           if(0 < visible)
             {
               /* Update client */
-              subClientArrange(c, gravity, screen);
+              subClientArrange(c, gravityid, screenid);
               XMapWindow(subtle->dpy, c->win);
               subEwmhSetWMState(c->win, NormalState);
 
-              /* Warp after gravity and screen have been set */
-              if(c->flags & SUB_CLIENT_MODE_URGENT)
-                subClientWarp(c, True);
+              /* Warp after gravity and screen have been set if not disabled */
+              if(c->flags & SUB_CLIENT_MODE_URGENT &&
+                  !(subtle->flags & SUB_SUBTLE_SKIP_URGENT_WARP) &&
+                  !(subtle->flags & SUB_SUBTLE_SKIP_WARP))
+                subClientWarp(c);
 
               /* EWMH: Desktop, screen */
               subEwmhSetCardinals(c->win, SUB_EWMH_NET_WM_DESKTOP,
-                (long *)&view, 1);
+                (long *)&viewid, 1);
               subEwmhSetCardinals(c->win, SUB_EWMH_SUBTLE_CLIENT_SCREEN,
-                (long *)&screen, 1);
+                (long *)&screenid, 1);
             }
           else ///< Unmap other windows
             {
@@ -385,11 +387,11 @@ subScreenConfigure(void)
       for(i = 0; i < subtle->screens->ndata; i++)
         {
           s = SCREEN(subtle->screens->data[i]);
-          v = VIEW(subtle->views->data[s->vid]);
+          v = VIEW(subtle->views->data[s->viewid]);
 
           /* Set visible tags and views to ease lookups */
           subtle->visible_tags  |= v->tags;
-          subtle->visible_views |= (1L << (s->vid + 1));
+          subtle->visible_views |= (1L << (s->viewid + 1));
         }
     }
 
@@ -404,7 +406,7 @@ subScreenConfigure(void)
   /* Hook: Configure */
   subHookCall(SUB_HOOK_TILE, NULL);
 
-  subSharedLogDebugSubtle("Configure: type=screen\n");
+  subSubtleLogDebugSubtle("Configure\n");
 } /* }}} */
 
  /** subScreenUpdate {{{
@@ -446,10 +448,12 @@ subScreenUpdate(void)
 
           if(p->flags & SUB_PANEL_SPACER1) spacer[offset]++;
           if(p->flags & SUB_PANEL_SPACER2) spacer[offset]++;
-          if(p->flags & SUB_PANEL_SEPARATOR1)
-              width[offset] += subtle->separator.width;
-          if(p->flags & SUB_PANEL_SEPARATOR2)
-              width[offset] += subtle->separator.width;
+          if(p->flags & SUB_PANEL_SEPARATOR1 &&
+              subtle->styles.separator.separator)
+            width[offset] += subtle->styles.separator.separator->width;
+          if(p->flags & SUB_PANEL_SEPARATOR2 &&
+              subtle->styles.separator.separator)
+            width[offset] += subtle->styles.separator.separator->width;
 
           width[offset] += p->width;
         }
@@ -465,7 +469,8 @@ subScreenUpdate(void)
         }
 
       /* Pass 2: Move and resize windows */
-      for(j = 0, npanel = 0, center = False; s->panels && j < s->panels->ndata; j++)
+      for(j = 0, npanel = 0, center = False;
+          s->panels && j < s->panels->ndata; j++)
         {
           p = PANEL(s->panels->data[j]);
 
@@ -491,8 +496,9 @@ subScreenUpdate(void)
             x[offset] = (s->base.width - width[offset]) / 2;
 
           /* Add separator before panel item */
-          if(p->flags & SUB_PANEL_SEPARATOR1)
-            x[offset] += subtle->separator.width;
+          if(p->flags & SUB_PANEL_SEPARATOR1 &&
+              subtle->styles.separator.separator)
+            x[offset] += subtle->styles.separator.separator->width;
 
           /* Add spacer before item */
           if(p->flags & SUB_PANEL_SPACER1)
@@ -510,8 +516,9 @@ subScreenUpdate(void)
           p->x = x[offset];
 
           /* Add separator after panel item */
-          if(p->flags & SUB_PANEL_SEPARATOR2)
-            x[offset] += subtle->separator.width;
+          if(p->flags & SUB_PANEL_SEPARATOR2 &&
+              subtle->styles.separator.separator)
+            x[offset] += subtle->styles.separator.separator->width;
 
           /* Add spacer after item */
           if(p->flags & SUB_PANEL_SPACER2)
@@ -526,6 +533,8 @@ subScreenUpdate(void)
           x[offset] += p->width;
         }
     }
+
+  subSubtleLogDebugSubtle("Update\n");
 } /* }}} */
 
  /** subScreenRender {{{
@@ -553,7 +562,9 @@ subScreenRender(void)
           if(p->flags & SUB_PANEL_HIDDEN) continue;
           if(panel != s->panel2 && p->flags & SUB_PANEL_BOTTOM)
             {
-              ScreenCopy(s, panel);
+              XCopyArea(subtle->dpy, s->drawable, panel, subtle->gcs.draw,
+                0, 0, s->base.width, subtle->ph, 0, 0);
+
               ScreenClear(s, subtle->styles.subtle.bottom);
               panel = s->panel2;
             }
@@ -561,10 +572,13 @@ subScreenRender(void)
           subPanelRender(p, s->drawable);
         }
 
-      ScreenCopy(s, panel);
+      XCopyArea(subtle->dpy, s->drawable, panel, subtle->gcs.draw,
+        0, 0, s->base.width, subtle->ph, 0, 0);
     }
 
   XSync(subtle->dpy, False); ///< Sync before going on
+
+  subSubtleLogDebugSubtle("Render\n");
 } /* }}} */
 
  /** subScreenResize {{{
@@ -622,24 +636,25 @@ subScreenResize(void)
     }
 
   ScreenPublish();
+
+  subSubtleLogDebugSubtle("Resize\n");
 } /* }}} */
 
- /** subScreenJump {{{
-  * @brief Jump to screen
+ /** subScreenWarp {{{
+  * @brief warp pointer to screen
   * @param[in]  s  A #SubScreen
   **/
 
 void
-subScreenJump(SubScreen *s)
+subScreenWarp(SubScreen *s)
 {
   assert(s);
 
+  /* Move pointer to screen center */
   XWarpPointer(subtle->dpy, None, ROOT, 0, 0, s->geom.x, s->geom.y,
     s->geom.x + s->geom.width / 2, s->geom.y + s->geom.height / 2);
 
-  subViewFocus(VIEW(subArrayGet(subtle->views, s->vid)), True);
-
-  subSharedLogDebugSubtle("Jump: type=screen\n");
+  subSubtleLogDebugSubtle("Warp\n");
 } /* }}} */
 
  /** SubScreenKill {{{
@@ -671,7 +686,7 @@ subScreenKill(SubScreen *s)
 
   free(s);
 
-  subSharedLogDebugSubtle("kill=screen\n");
+  subSubtleLogDebugSubtle("Kill\n");
 } /* }}} */
 
 /* All */
@@ -694,7 +709,7 @@ subScreenPublish(void)
 
   /* Collect views */
   for(i = 0; i < subtle->screens->ndata; i++)
-    views[i] = SCREEN(subtle->screens->data[i])->vid;
+    views[i] = SCREEN(subtle->screens->data[i])->viewid;
 
   subEwmhSetCardinals(ROOT, SUB_EWMH_SUBTLE_SCREEN_VIEWS,
     views, subtle->screens->ndata);
@@ -703,7 +718,7 @@ subScreenPublish(void)
 
   XSync(subtle->dpy, False); ///< Sync all changes
 
-  subSharedLogDebugSubtle("publish=screen, screens=%d\n",
+  subSubtleLogDebugSubtle("Publish: screens=%d\n",
     subtle->screens->ndata);
 } /* }}} */
 

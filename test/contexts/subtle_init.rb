@@ -2,31 +2,31 @@
 # @package test
 #
 # @file Test Subtlext::Subtle functions
-# @author Christoph Kappel <unexist@dorfelite.net>
-# @version $Id: test/contexts/subtle_init.rb,v 2951 2011/07/30 15:06:32 unexist $
+# @author Christoph Kappel <unexist@subforge.org>
+# @version $Id: test/contexts/subtle_init.rb,v 3131 2011/11/15 20:43:06 unexist $
 #
 # This program can be distributed under the terms of the GNU GPLv2.
 # See the file COPYING for details.
 #
 
 context 'Subtle - Init' do
-  COLORS_COUNT = 54
+  COLORS_COUNT = 48
 
   asserts 'Check running' do # {{{
     Subtlext::Subtle.running?
   end # }}}
 
   asserts 'Check colors' do # {{{
-    Subtlext::Subtle.colors.is_a? Hash and
+    Subtlext::Subtle.colors.is_a?(Hash) and
       COLORS_COUNT == Subtlext::Subtle.colors.size
   end # }}}
 
   asserts 'Check font' do # {{{
-    '-*-*-medium-*-*-*-14-*-*-*-*-*-*-*' == Subtlext::Subtle.font
+    '-*-*-*-*-*-*-14-*-*-*-*-*-*-*' == Subtlext::Subtle.font
   end # }}}
 
   asserts 'Check spawn' do # {{{
-    if((xterm = find_executable0('xterm')).nil?)
+    if (xterm = find_executable0('xterm')).nil?
       raise 'xterm not found in path'
     else
       Subtlext::Subtle.spawn("#{xterm} -display :10")
