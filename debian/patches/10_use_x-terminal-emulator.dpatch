@@ -1,0 +1,19 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 10_use_x-terminal-emulator.dpatch by Alexander Wirt <formorer@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Use Debians x-terminal-emulator instead of urxvt
+
+@DPATCH@
+diff -urNad '--exclude=CVS' '--exclude=.svn' '--exclude=.git' '--exclude=.arch' '--exclude=.hg' '--exclude=_darcs' '--exclude=.bzr' pkg-subtle~/data/subtle.rb pkg-subtle/data/subtle.rb
+--- pkg-subtle~/data/subtle.rb	2012-06-21 08:10:26.000000000 +0200
++++ pkg-subtle/data/subtle.rb	2012-06-21 08:11:04.097356538 +0200
+@@ -431,7 +431,7 @@
+ #grab "W-c", [ :bottom_right, :bottom_right66, :bottom_right33 ]
+ 
+ # Exec programs
+-grab "W-Return", "urxvt"
++grab "W-Return", "x-terminal-emulator"
+ 
+ # Run Ruby lambdas
+ grab "S-F2" do |c|
