@@ -4,7 +4,7 @@
   *
   * @file Ruby functions
   * @copyright (c) 2005-2012 Christoph Kappel <unexist@subforge.org>
-  * @version $Id: src/subtle/ruby.c,v 3215 2012/06/01 12:30:23 unexist $
+  * @version $Id: src/subtle/ruby.c,v 3223 2012/06/20 11:29:44 unexist $
   *
   * This program can be distributed under the terms of the GNU GPLv2.
   * See the file COPYING for details.
@@ -2606,14 +2606,14 @@ RubyConfigLoadConfig(VALUE self,
 
       /* Combine XDG paths */
       if((home = getenv("XDG_CONFIG_HOME")))
-        len += snprintf(tokens, sizeof(tokens), "%s/%s", home, PKG_NAME);
-      else len += snprintf(tokens, sizeof(tokens), "%s/.config/%s",
-        getenv("HOME"), PKG_NAME);
+        len += snprintf(tokens, sizeof(tokens), "%s", home);
+      else len += snprintf(tokens, sizeof(tokens), "%s/.config",
+        getenv("HOME"));
 
       if((dirs = getenv("XDG_CONFIG_DIRS")))
         len += snprintf(tokens + len, sizeof(tokens), ":%s", dirs);
-      else len += snprintf(tokens + len, sizeof(tokens), "%s:%s",
-        tokens, "/etc/xdg");
+      else len += snprintf(tokens + len, sizeof(tokens), ":%s/%s",
+        "/etc/xdg", PKG_NAME);
 
       if((home = getenv("XDG_DATA_HOME")))
         {
@@ -2626,10 +2626,17 @@ RubyConfigLoadConfig(VALUE self,
       /* Search file in XDG paths */
       while((tok = strsep(&tokensp, ":")))
         {
+          /* Check if config file exists in tok or tok/subtle */
           snprintf(buf, sizeof(buf), "%s/%s", tok, RSTRING_PTR(file));
 
-          if(-1 != access(buf, R_OK)) ///< Check if config file exists
-            break;
+          if(-1 != access(buf, R_OK)) break;
+          else
+            {
+              snprintf(buf, sizeof(buf), "%s/%s/%s",
+                tok, PKG_NAME, RSTRING_PTR(file));
+
+              if(-1 != access(buf, R_OK)) break;
+            }
         }
     }
   else snprintf(buf, sizeof(buf), "%s", RSTRING_PTR(file));
