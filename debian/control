@@ -13,7 +13,7 @@ Build-Depends:  debhelper (>= 8.0.0),
                 libxinerama-dev,
                 libxpm-dev,
                 dpatch (>= 2.0.32)
-Standards-Version: 3.9.2
+Standards-Version: 3.9.3
 Homepage: http://subforge.org/
 Vcs-Git: git://github.com/formorer/pkg-subtle.git
 Vcs-Browser: http://github.com/formorer/pkg-subtle
