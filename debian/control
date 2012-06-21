@@ -2,7 +2,7 @@ Source: subtle
 Section: x11
 Priority: extra
 Maintainer: Alexander Wirt <formorer@debian.org>
-Build-Depends:  debhelper (>= 8.0.0),
+Build-Depends:  debhelper (>= 9),
                 chrpath,
                 libx11-dev,
                 ruby1.9.1,
