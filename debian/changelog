@@ -1,3 +1,15 @@
+subtle (0.11.3224-xi-1) unstable; urgency=low
+
+  * [eb054d1] Imported Upstream version 0.11.3216xi
+  * [e52f03b] Imported Upstream version 0.11.3224-xi
+  * [9d8690b] 10_fix_sur_dependency_checks is now upstream
+  * [5d4b36e] Use x-terminal-emulator instead of rxvt (Closes: #650340)
+  * [4fa366e] Provide x-window-manager (Closes: #663994)
+  * [20d79e1] Bump standards version (No changes)
+  * [e1331b1] Use debhelper 9 for buildflags support
+
+ -- Alexander Wirt <formorer@debian.org>  Thu, 21 Jun 2012 17:54:36 +0200
+
 subtle (0.10.3008nu-3) unstable; urgency=low
 
   * [ef58a45] Add dpatch support
